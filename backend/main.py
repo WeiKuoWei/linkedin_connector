@@ -184,13 +184,14 @@ async def upload_csv(file: UploadFile = File(...)):
             if conn["url"] not in enriched_cache:
                 new_urls_to_enrich.append(conn)
         
-        logger.info(f"Found {len(new_urls_to_enrich)} new connections to enrich")
+        logger.info(f"Found {len(new_urls_to_enrich)} new connections to enrich out of {len(new_connections)} total connections")
         
-        # Enrich only new connections
+        # Enrich only new connections with progress logging
         enrichment_count = 0
-
-        for i, connection in enumerate(new_urls_to_enrich[:NUMBER_OF_ENRICHMENTS]):  # Limit to NUMBER_OF_ENRICHMENTS for API costs
-            logger.info(f"Enriching new connection {i+1}/{min(NUMBER_OF_ENRICHMENTS, len(new_urls_to_enrich))}: {connection['first_name']} {connection['last_name']}")
+        max_to_enrich = min(NUMBER_OF_ENRICHMENTS, len(new_urls_to_enrich))  # Limit to NUMBER_OF_ENRICHMENTS for API costs
+        
+        for i, connection in enumerate(new_urls_to_enrich[:max_to_enrich]):
+            logger.info(f"Enriching new connection {i+1}/{max_to_enrich}: {connection['first_name']} {connection['last_name']}")
             
             enriched_data = await enrich_profile(connection["url"])
             enriched_connection = format_enriched_connection(connection, enriched_data)
@@ -203,15 +204,15 @@ async def upload_csv(file: UploadFile = File(...)):
             await asyncio.sleep(1)
         
         # Add remaining new connections (not enriched due to limit) to cache
-        for connection in new_urls_to_enrich[NUMBER_OF_ENRICHMENTS:]:
+        for connection in new_urls_to_enrich[max_to_enrich:]:
             connection["enriched"] = False
             enriched_cache[connection["url"]] = connection
         
-        # Add any existing connections from CSV that were already in cache (update basic info)
+        # Update existing connections with any new basic info
         for connection in new_connections:
             if connection["url"] in enriched_cache:
-                # Update basic info but keep enriched data
                 cached_conn = enriched_cache[connection["url"]]
+                # Update basic info but preserve enriched data
                 cached_conn.update({
                     "first_name": connection["first_name"],
                     "last_name": connection["last_name"],
@@ -237,10 +238,12 @@ async def upload_csv(file: UploadFile = File(...)):
             "total_in_cache": len(enriched_cache),
             "newly_enriched": enrichment_count,
             "total_enriched": total_enriched,
+            "new_connections_found": len(new_urls_to_enrich),
             "filename": file.filename
         }
     
     except Exception as e:
+        logger.error(f"Error processing file: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
 
 @app.post("/get-suggestions")
