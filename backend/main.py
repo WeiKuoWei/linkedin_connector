@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, UploadFile, File
+from fastapi import FastAPI, HTTPException, UploadFile, File, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import pandas as pd
@@ -13,7 +13,10 @@ import time
 import io
 
 # fixed number of enrichments for testing
-NUMBER_OF_ENRICHMENTS = 10
+NUMBER_OF_ENRICHMENTS = 5
+
+# Rate limiting sleep duration (in seconds) for API calls
+RATE_LIMIT_SLEEP_SECONDS = 1
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -41,6 +44,14 @@ client = AzureOpenAI(
 # RapidAPI configuration
 RAPIDAPI_KEY = os.getenv("RAPIDAPI_KEY")
 RAPIDAPI_HOST = "li-data-scraper.p.rapidapi.com"
+
+# Global progress tracking
+enrichment_status = {
+    "current": 0,
+    "total": 0,
+    "completed": True,
+    "in_progress": False
+}
 
 class MissionRequest(BaseModel):
     mission: str
@@ -131,13 +142,68 @@ def save_enriched_cache(cache):
     with open("data/connections_enriched.json", "w") as f:
         json.dump(cache, f, indent=2)
 
+async def background_enrichment(connections_to_enrich):
+    """Background task for enriching profiles"""
+    global enrichment_status
+    
+    enriched_cache = load_enriched_cache()
+    enrichment_count = 0
+    max_to_enrich = min(NUMBER_OF_ENRICHMENTS, len(connections_to_enrich))
+    
+    # Initialize progress tracking
+    enrichment_status["current"] = 0
+    enrichment_status["total"] = max_to_enrich
+    enrichment_status["completed"] = False
+    enrichment_status["in_progress"] = True
+    
+    try:
+        for i, connection in enumerate(connections_to_enrich[:max_to_enrich]):
+            logger.info(f"Enriching new connection {i+1}/{max_to_enrich}: {connection['first_name']} {connection['last_name']}")
+            
+            # Update progress
+            enrichment_status["current"] = i + 1
+            
+            enriched_data = await enrich_profile(connection["url"])
+            enriched_connection = format_enriched_connection(connection, enriched_data)
+            
+            # Add to cache with URL as key
+            enriched_cache[connection["url"]] = enriched_connection
+            enrichment_count += 1
+            
+            # Save cache after each enrichment
+            save_enriched_cache(enriched_cache)
+            
+            # Respect rate limits
+            await asyncio.sleep(RATE_LIMIT_SLEEP_SECONDS)
+        
+        # Add remaining new connections (not enriched due to limit) to cache
+        for connection in connections_to_enrich[max_to_enrich:]:
+            connection["enriched"] = False
+            enriched_cache[connection["url"]] = connection
+        
+        # Final save
+        save_enriched_cache(enriched_cache)
+        
+    except Exception as e:
+        logger.error(f"Error in background enrichment: {str(e)}")
+    finally:
+        # Mark enrichment as completed
+        enrichment_status["completed"] = True
+        enrichment_status["in_progress"] = False
+        logger.info(f"Background enrichment completed. Enriched {enrichment_count} profiles.")
+
 @app.get("/")
 async def root():
     return {"message": "LinkedIn AI Chatbot API with Incremental Profile Enrichment"}
 
+@app.get("/enrichment-progress")
+async def get_enrichment_progress():
+    """Get current enrichment progress"""
+    return enrichment_status
+
 @app.post("/upload-csv")
-async def upload_csv(file: UploadFile = File(...)):
-    """Upload and parse LinkedIn connections CSV file with incremental enrichment"""
+async def upload_csv(file: UploadFile = File(...), background_tasks: BackgroundTasks = None):
+    """Upload and parse LinkedIn connections CSV file with background enrichment"""
     try:
         # Validate file type
         if not file.filename.endswith('.csv'):
@@ -186,28 +252,6 @@ async def upload_csv(file: UploadFile = File(...)):
         
         logger.info(f"Found {len(new_urls_to_enrich)} new connections to enrich out of {len(new_connections)} total connections")
         
-        # Enrich only new connections with progress logging
-        enrichment_count = 0
-        max_to_enrich = min(NUMBER_OF_ENRICHMENTS, len(new_urls_to_enrich))  # Limit to NUMBER_OF_ENRICHMENTS for API costs
-        
-        for i, connection in enumerate(new_urls_to_enrich[:max_to_enrich]):
-            logger.info(f"Enriching new connection {i+1}/{max_to_enrich}: {connection['first_name']} {connection['last_name']}")
-            
-            enriched_data = await enrich_profile(connection["url"])
-            enriched_connection = format_enriched_connection(connection, enriched_data)
-            
-            # Add to cache with URL as key
-            enriched_cache[connection["url"]] = enriched_connection
-            enrichment_count += 1
-            
-            # Respect rate limits
-            await asyncio.sleep(1)
-        
-        # Add remaining new connections (not enriched due to limit) to cache
-        for connection in new_urls_to_enrich[max_to_enrich:]:
-            connection["enriched"] = False
-            enriched_cache[connection["url"]] = connection
-        
         # Update existing connections with any new basic info
         for connection in new_connections:
             if connection["url"] in enriched_cache:
@@ -221,6 +265,9 @@ async def upload_csv(file: UploadFile = File(...)):
                     "position": connection["position"] or cached_conn.get("position", ""),
                     "connected_on": connection["connected_on"]
                 })
+            else:
+                # Add new connection to cache (not yet enriched)
+                enriched_cache[connection["url"]] = connection
         
         # Save updated cache
         save_enriched_cache(enriched_cache)
@@ -232,13 +279,19 @@ async def upload_csv(file: UploadFile = File(...)):
         
         total_enriched = sum(1 for conn in enriched_cache.values() if conn.get("enriched", False))
         
+        # Start background enrichment if there are new connections
+        will_enrich = min(NUMBER_OF_ENRICHMENTS, len(new_urls_to_enrich))
+        if new_urls_to_enrich and background_tasks:
+            background_tasks.add_task(background_enrichment, new_urls_to_enrich)
+        
         return {
             "message": f"Successfully processed {len(new_connections)} connections",
             "count": len(new_connections),
             "total_in_cache": len(enriched_cache),
-            "newly_enriched": enrichment_count,
             "total_enriched": total_enriched,
             "new_connections_found": len(new_urls_to_enrich),
+            "will_enrich": will_enrich,
+            "enrichment_started": len(new_urls_to_enrich) > 0,
             "filename": file.filename
         }
     
