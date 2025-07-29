@@ -3,6 +3,9 @@
 node_modules/
 .env
 
+# files that contains _old
+*_old.*
+
 # directories
 data
 context
