@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import pandas as pd
@@ -10,6 +10,10 @@ import httpx
 import asyncio
 import logging
 import time
+import io
+
+# fixed number of enrichments for testing
+NUMBER_OF_ENRICHMENTS = 10
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -113,133 +117,147 @@ def format_enriched_connection(connection, enriched_data):
         "company_size": current_position.get("companyStaffCountRange", "")
     }
 
+def load_enriched_cache():
+    """Load existing enriched connections cache (URL-keyed dictionary)"""
+    cache_path = "data/connections_enriched.json"
+    if os.path.exists(cache_path):
+        with open(cache_path, "r") as f:
+            return json.load(f)
+    return {}
+
+def save_enriched_cache(cache):
+    """Save enriched connections cache"""
+    os.makedirs("data", exist_ok=True)
+    with open("data/connections_enriched.json", "w") as f:
+        json.dump(cache, f, indent=2)
+
 @app.get("/")
 async def root():
-    return {"message": "LinkedIn AI Chatbot API with Profile Enrichment"}
+    return {"message": "LinkedIn AI Chatbot API with Incremental Profile Enrichment"}
 
-@app.post("/parse-connections")
-async def parse_connections():
+@app.post("/upload-csv")
+async def upload_csv(file: UploadFile = File(...)):
+    """Upload and parse LinkedIn connections CSV file with incremental enrichment"""
     try:
-        # Read CSV from data directory
-        df = pd.read_csv("../data/Connections.csv", skiprows=3)
+        # Validate file type
+        if not file.filename.endswith('.csv'):
+            raise HTTPException(status_code=400, detail="File must be a CSV")
         
-        # Clean and process data
-        connections = []
+        # Read file content
+        content = await file.read()
+        
+        # Parse CSV (skip first 3 rows like LinkedIn export format)
+        df = pd.read_csv(io.StringIO(content.decode('utf-8')), skiprows=3)
+        
+        # Validate required columns
+        required_columns = ["First Name", "Last Name", "URL", "Company", "Position"]
+        missing_columns = [col for col in required_columns if col not in df.columns]
+        if missing_columns:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Missing required columns: {missing_columns}"
+            )
+        
+        # Process connections from CSV
+        new_connections = []
         for _, row in df.iterrows():
             connection = {
-                "first_name": row.get("First Name", ""),
-                "last_name": row.get("Last Name", ""),
-                "url": row.get("URL", ""),
-                "email": row.get("Email Address", ""),
-                "company": row.get("Company", ""),
-                "position": row.get("Position", ""),
-                "connected_on": row.get("Connected On", ""),
+                "first_name": str(row.get("First Name", "")).strip(),
+                "last_name": str(row.get("Last Name", "")).strip(),
+                "url": str(row.get("URL", "")).strip(),
+                "email": str(row.get("Email Address", "")).strip(),
+                "company": str(row.get("Company", "")).strip(),
+                "position": str(row.get("Position", "")).strip(),
+                "connected_on": str(row.get("Connected On", "")).strip(),
                 "enriched": False
             }
-            connections.append(connection)
+            # Only add if has name and valid URL
+            if connection["first_name"] and connection["last_name"] and connection["url"]:
+                new_connections.append(connection)
         
-        # Save basic connections first
-        with open("data/connections.json", "w") as f:
-            json.dump(connections, f, indent=2)
+        # Load existing enriched cache (URL-keyed)
+        enriched_cache = load_enriched_cache()
         
-        return {"message": f"Parsed {len(connections)} connections", "count": len(connections)}
-    
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        # Identify new connections that need enrichment
+        new_urls_to_enrich = []
+        for conn in new_connections:
+            if conn["url"] not in enriched_cache:
+                new_urls_to_enrich.append(conn)
+        
+        logger.info(f"Found {len(new_urls_to_enrich)} new connections to enrich")
+        
+        # Enrich only new connections
+        enrichment_count = 0
 
-@app.post("/enrich-connections")
-async def enrich_connections():
-    """Enrich connections with detailed LinkedIn profile data"""
-    try:
-        # Load existing connections
-        with open("data/connections.json", "r") as f:
-            connections = json.load(f)
-        
-        enriched_connections = []
-        
-        # Process connections in batches to avoid rate limits
-        for i, connection in enumerate(connections[:10]):  # Limit to first 10 for testing
-            print(f"Enriching {i+1}/{min(10, len(connections))}: {connection['first_name']} {connection['last_name']}")
+        for i, connection in enumerate(new_urls_to_enrich[:NUMBER_OF_ENRICHMENTS]):  # Limit to NUMBER_OF_ENRICHMENTS for API costs
+            logger.info(f"Enriching new connection {i+1}/{min(NUMBER_OF_ENRICHMENTS, len(new_urls_to_enrich))}: {connection['first_name']} {connection['last_name']}")
             
-            if connection.get("url"):
-                enriched_data = await enrich_profile(connection["url"])
-                enriched_connection = format_enriched_connection(connection, enriched_data)
-                enriched_connections.append(enriched_connection)
-                
-                # Small delay to respect rate limits
-                await asyncio.sleep(1)
-            else:
-                enriched_connections.append(connection)
+            enriched_data = await enrich_profile(connection["url"])
+            enriched_connection = format_enriched_connection(connection, enriched_data)
+            
+            # Add to cache with URL as key
+            enriched_cache[connection["url"]] = enriched_connection
+            enrichment_count += 1
+            
+            # Respect rate limits
+            await asyncio.sleep(1)
         
-        # Add remaining connections without enrichment
-        enriched_connections.extend(connections[10:])
+        # Add remaining new connections (not enriched due to limit) to cache
+        for connection in new_urls_to_enrich[NUMBER_OF_ENRICHMENTS:]:
+            connection["enriched"] = False
+            enriched_cache[connection["url"]] = connection
         
-        # Save enriched connections
-        with open("data/connections_enriched.json", "w") as f:
-            json.dump(enriched_connections, f, indent=2)
+        # Add any existing connections from CSV that were already in cache (update basic info)
+        for connection in new_connections:
+            if connection["url"] in enriched_cache:
+                # Update basic info but keep enriched data
+                cached_conn = enriched_cache[connection["url"]]
+                cached_conn.update({
+                    "first_name": connection["first_name"],
+                    "last_name": connection["last_name"],
+                    "email": connection["email"],
+                    "company": connection["company"] or cached_conn.get("company", ""),
+                    "position": connection["position"] or cached_conn.get("position", ""),
+                    "connected_on": connection["connected_on"]
+                })
         
-        enriched_count = sum(1 for conn in enriched_connections if conn.get("enriched"))
+        # Save updated cache
+        save_enriched_cache(enriched_cache)
+        
+        # Save current connections list for compatibility
+        os.makedirs("data", exist_ok=True)
+        with open("data/connections.json", "w") as f:
+            json.dump(new_connections, f, indent=2)
+        
+        total_enriched = sum(1 for conn in enriched_cache.values() if conn.get("enriched", False))
         
         return {
-            "message": f"Enriched {enriched_count} connections",
-            "total": len(enriched_connections),
-            "enriched": enriched_count
+            "message": f"Successfully processed {len(new_connections)} connections",
+            "count": len(new_connections),
+            "total_in_cache": len(enriched_cache),
+            "newly_enriched": enrichment_count,
+            "total_enriched": total_enriched,
+            "filename": file.filename
         }
     
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
 
 @app.post("/get-suggestions")
 async def get_suggestions(request: MissionRequest):
     try:
-        # Always ensure we have enriched connections
-        enriched_file_path = "data/connections_enriched.json"
+        # Load enriched cache
+        enriched_cache = load_enriched_cache()
         
-        # Check if enriched connections exist
-        if not os.path.exists(enriched_file_path):
-            logger.info("No enriched connections found. Starting enrichment process...")
-            
-            # Load basic connections
-            with open("data/connections.json", "r") as f:
-                basic_connections = json.load(f)
-            
-            # Enrich profiles
-            enriched_connections = []
-            total_to_enrich = min(50, len(basic_connections))  # Limit for API costs
-            
-            for i, connection in enumerate(basic_connections[:total_to_enrich]):
-                logger.info(f"Enriching {i+1}/{total_to_enrich}: {connection['first_name']} {connection['last_name']}")
-                
-                if connection.get("url"):
-                    enriched_data = await enrich_profile(connection["url"])
-                    enriched_connection = format_enriched_connection(connection, enriched_data)
-                    enriched_connections.append(enriched_connection)
-                    
-                    # Respect rate limits
-                    await asyncio.sleep(1)
-                else:
-                    # Keep connection but mark as not enriched
-                    connection["enriched"] = False
-                    enriched_connections.append(connection)
-            
-            # Add remaining connections (not enriched)
-            for connection in basic_connections[total_to_enrich:]:
-                connection["enriched"] = False
-                enriched_connections.append(connection)
-            
-            # Cache enriched connections
-            with open(enriched_file_path, "w") as f:
-                json.dump(enriched_connections, f, indent=2)
-            
-            logger.info(f"Enrichment complete. Cached {len(enriched_connections)} connections.")
-        else:
-            # Load cached enriched connections
-            logger.info("Loading cached enriched connections...")
-            with open(enriched_file_path, "r") as f:
-                enriched_connections = json.load(f)
+        if not enriched_cache:
+            raise HTTPException(
+                status_code=400, 
+                detail="No connections found. Please upload a CSV file first."
+            )
         
-        # Filter for enriched connections only for better suggestions
-        enriched_only = [conn for conn in enriched_connections if conn.get("enriched", False)]
+        # Convert cache to list and filter for enriched connections
+        all_connections = list(enriched_cache.values())
+        enriched_only = [conn for conn in all_connections if conn.get("enriched", False)]
         
         if not enriched_only:
             raise HTTPException(
@@ -249,7 +267,7 @@ async def get_suggestions(request: MissionRequest):
         
         # Create enhanced prompt with enriched data
         connections_text = []
-        for conn in enriched_only[:30]:  # Use enriched connections only
+        for conn in enriched_only[:NUMBER_OF_ENRICHMENTS]:  # Use top NUMBER_OF_ENRICHMENTS enriched connections
             name = f"{conn['first_name']} {conn['last_name']}"
             info = f"{name}: {conn.get('headline', 'N/A')}"
             
@@ -307,31 +325,14 @@ Return ONLY a valid JSON array with this exact structure:
             # If JSON parsing fails, return raw response
             suggestions_json = ai_response
         
-        enriched_count = len(enriched_only)
-        
         return {
             "mission": request.mission,
             "suggestions": suggestions_json,
-            "total_connections": len(enriched_connections),
-            "enriched_connections": enriched_count,
+            "total_connections": len(all_connections),
+            "enriched_connections": len(enriched_only),
             "using_enriched_data": True
         }
     
     except Exception as e:
         logger.error(f"Error in get_suggestions: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
-
-# # Optional: Add endpoint to manually trigger enrichment
-# @app.post("/force-enrich")
-# async def force_enrich():
-#     """Force re-enrichment of all connections"""
-#     try:
-#         # Delete cached file to force re-enrichment
-#         enriched_file_path = "data/connections_enriched.json"
-#         if os.path.exists(enriched_file_path):
-#             os.remove(enriched_file_path)
-        
-#         return {"message": "Enriched cache cleared. Next suggestion request will trigger re-enrichment."}
-    
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=str(e))
