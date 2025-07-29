@@ -8,6 +8,12 @@ from dotenv import load_dotenv
 from openai import AzureOpenAI
 import httpx
 import asyncio
+import logging
+import time
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 
@@ -47,21 +53,26 @@ async def enrich_profile(url: str):
     
     try:
         async with httpx.AsyncClient() as http_client:
+            start_time = time.time()
             response = await http_client.get(
                 f"https://{RAPIDAPI_HOST}/get-profile-data-by-url",
                 headers=headers,
                 params={"url": url},
                 timeout=30.0
             )
-            
+
+            end_time = time.time()
+            duration = end_time - start_time
+            logger.info(f"LinkedIn API call duration for {url}: {duration:.2f} seconds")
+
             if response.status_code == 200:
                 return response.json()
             else:
-                print(f"LinkedIn API error for {url}: {response.status_code}")
+                logger.info(f"LinkedIn API error for {url}: {response.status_code}")
                 return None
                 
     except Exception as e:
-        print(f"Error enriching profile {url}: {str(e)}")
+        logger.error(f"Error enriching profile {url}: {str(e)}")
         return None
 
 def format_enriched_connection(connection, enriched_data):
@@ -181,67 +192,146 @@ async def enrich_connections():
 @app.post("/get-suggestions")
 async def get_suggestions(request: MissionRequest):
     try:
-        # Try to load enriched connections first, fallback to basic
-        try:
-            with open("data/connections_enriched.json", "r") as f:
-                connections = json.load(f)
-        except FileNotFoundError:
+        # Always ensure we have enriched connections
+        enriched_file_path = "data/connections_enriched.json"
+        
+        # Check if enriched connections exist
+        if not os.path.exists(enriched_file_path):
+            logger.info("No enriched connections found. Starting enrichment process...")
+            
+            # Load basic connections
             with open("data/connections.json", "r") as f:
-                connections = json.load(f)
+                basic_connections = json.load(f)
+            
+            # Enrich profiles
+            enriched_connections = []
+            total_to_enrich = min(50, len(basic_connections))  # Limit for API costs
+            
+            for i, connection in enumerate(basic_connections[:total_to_enrich]):
+                logger.info(f"Enriching {i+1}/{total_to_enrich}: {connection['first_name']} {connection['last_name']}")
+                
+                if connection.get("url"):
+                    enriched_data = await enrich_profile(connection["url"])
+                    enriched_connection = format_enriched_connection(connection, enriched_data)
+                    enriched_connections.append(enriched_connection)
+                    
+                    # Respect rate limits
+                    await asyncio.sleep(1)
+                else:
+                    # Keep connection but mark as not enriched
+                    connection["enriched"] = False
+                    enriched_connections.append(connection)
+            
+            # Add remaining connections (not enriched)
+            for connection in basic_connections[total_to_enrich:]:
+                connection["enriched"] = False
+                enriched_connections.append(connection)
+            
+            # Cache enriched connections
+            with open(enriched_file_path, "w") as f:
+                json.dump(enriched_connections, f, indent=2)
+            
+            logger.info(f"Enrichment complete. Cached {len(enriched_connections)} connections.")
+        else:
+            # Load cached enriched connections
+            logger.info("Loading cached enriched connections...")
+            with open(enriched_file_path, "r") as f:
+                enriched_connections = json.load(f)
+        
+        # Filter for enriched connections only for better suggestions
+        enriched_only = [conn for conn in enriched_connections if conn.get("enriched", False)]
+        
+        if not enriched_only:
+            raise HTTPException(
+                status_code=400, 
+                detail="No enriched profiles available. Please ensure connections have valid LinkedIn URLs."
+            )
         
         # Create enhanced prompt with enriched data
         connections_text = []
-        for conn in connections[:50]:  # Limit for token efficiency
+        for conn in enriched_only[:30]:  # Use enriched connections only
             name = f"{conn['first_name']} {conn['last_name']}"
+            info = f"{name}: {conn.get('headline', 'N/A')}"
             
-            if conn.get("enriched"):
-                # Use enriched data for better context
-                info = f"{name}: {conn.get('headline', 'N/A')}"
-                if conn.get("summary"):
-                    info += f" | Summary: {conn['summary'][:100]}..."
-                if conn.get("location"):
-                    info += f" | Location: {conn['location']}"
-                if conn.get("industry"):
-                    info += f" | Industry: {conn['industry']}"
-            else:
-                # Fallback to basic data
-                info = f"{name}: {conn.get('position', 'N/A')} at {conn.get('company', 'N/A')}"
+            if conn.get("summary"):
+                info += f" | Summary: {conn['summary'][:150]}..."
+            if conn.get("location"):
+                info += f" | Location: {conn['location']}"
+            if conn.get("industry"):
+                info += f" | Industry: {conn['industry']}"
+            if conn.get("company_size"):
+                info += f" | Company Size: {conn['company_size']}"
             
             connections_text.append(info)
         
         prompt = f"""
 Mission: {request.mission}
 
-LinkedIn Connections (with enriched profiles where available):
+LinkedIn Connections (enriched profiles with detailed information):
 {chr(10).join(connections_text)}
 
-Based on the mission above, suggest the top 4 most relevant connections who could help. 
-For each suggestion, provide:
-1. Name and current role
-2. Why they're relevant (specific reasoning based on their background)
-3. How they could help with this mission
+Based on the mission above and the detailed profile information provided, suggest the top 4 most relevant connections who could help. Use the enriched profile data (summary, location, industry, company info) to make intelligent matches.
 
-Format as JSON array with fields: name, role, company, reasoning, how_they_help
+For each suggestion, provide:
+1. Name and current role/headline
+2. Why they're relevant (specific reasoning based on their enriched profile data)
+3. How they could specifically help with this mission
+4. What makes them a strong connection for this goal
+
+Return ONLY a valid JSON array with this exact structure:
+[
+  {{
+    "name": "Full Name",
+    "role": "Current Role/Headline", 
+    "company": "Current Company",
+    "reasoning": "Why they're relevant based on their profile",
+    "how_they_help": "Specific ways they can help with the mission"
+  }}
+]
 """
         
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=1000,
+            max_tokens=1200,
             temperature=0.7
         )
         
-        # Parse AI response
         ai_response = response.choices[0].message.content
         
-        enriched_count = sum(1 for conn in connections if conn.get("enriched"))
+        # Try to parse as JSON, fallback to raw text if needed
+        try:
+            import json as json_parser
+            suggestions_json = json_parser.loads(ai_response)
+        except:
+            # If JSON parsing fails, return raw response
+            suggestions_json = ai_response
+        
+        enriched_count = len(enriched_only)
         
         return {
             "mission": request.mission,
-            "suggestions": ai_response,
-            "total_connections": len(connections),
-            "enriched_connections": enriched_count
+            "suggestions": suggestions_json,
+            "total_connections": len(enriched_connections),
+            "enriched_connections": enriched_count,
+            "using_enriched_data": True
         }
     
     except Exception as e:
+        logger.error(f"Error in get_suggestions: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+# # Optional: Add endpoint to manually trigger enrichment
+# @app.post("/force-enrich")
+# async def force_enrich():
+#     """Force re-enrichment of all connections"""
+#     try:
+#         # Delete cached file to force re-enrichment
+#         enriched_file_path = "data/connections_enriched.json"
+#         if os.path.exists(enriched_file_path):
+#             os.remove(enriched_file_path)
+        
+#         return {"message": "Enriched cache cleared. Next suggestion request will trigger re-enrichment."}
+    
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=str(e))
