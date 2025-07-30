@@ -1,6 +1,5 @@
 from fastapi import FastAPI, HTTPException, UploadFile, File, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
 import pandas as pd
 import logging
 import io
@@ -8,7 +7,8 @@ import io
 from config import client, enrichment_status, NUMBER_OF_ENRICHMENTS
 from storage import load_enriched_cache, save_enriched_cache, save_connections_list
 from enrichment import background_enrichment
-from prompt import INSTRUCTIONS
+from models import MissionRequest, MessageRequest
+from prompt import get_instructions, get_linkedin_message_prompt
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -23,9 +23,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-class MissionRequest(BaseModel):
-    mission: str
 
 @app.get("/")
 async def root():
@@ -130,14 +127,44 @@ async def upload_csv(file: UploadFile = File(...), background_tasks: BackgroundT
         logger.error(f"Error processing file: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
 
+@app.post("/generate-message")
+async def generate_message(request: MessageRequest):
+    """Generate a personalized LinkedIn message for reconnection"""
+    try:
+        prompt = get_linkedin_message_prompt(
+            name=request.name,
+            company=request.company,
+            role=request.role,
+            mission=request.mission,
+            profile_summary=request.profile_summary,
+            location=request.location
+        )
+        
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=500,
+            temperature=0.7
+        )
+        
+        message_text = response.choices[0].message.content.strip()
+        
+        return {
+            "message": message_text,
+            "recipient": request.name,
+            "company": request.company
+        }
+    
+    except Exception as e:
+        logger.error(f"Error generating message: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error generating message: {str(e)}")
+
 @app.post("/get-suggestions")
 async def get_suggestions(request: MissionRequest):
     try:
         # Load enriched cache
         enriched_cache = load_enriched_cache()
         
-        # 
-
         if not enriched_cache:
             raise HTTPException(
                 status_code=400, 
@@ -171,40 +198,73 @@ async def get_suggestions(request: MissionRequest):
             
             connections_text.append(info)
         
-        prompt = f"""
-            Mission: {request.mission}
-
-            LinkedIn Connections (enriched profiles with detailed information):
-            {chr(10).join(connections_text)}
-            {INSTRUCTIONS}
-        """
+        prompt = get_instructions(request.mission, connections_text)
         
+        logger.info(f"Generated prompt for AI: {prompt}")  # Log first 200 chars for debugging
+
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=[{"role": "user", "content": prompt}],
             max_tokens=1200,
             temperature=0.7
         )
-        
-        # print the raw response for debugging
-        logger.info(f"Raw AI response: {response.choices[0].message.content}")
-
         ai_response = response.choices[0].message.content
 
-        # print the raw AI response for debugging
-        logger.info(f"AI Response: {ai_response}")
-        
+        logger.info(f"AI response: {ai_response[:200]}...")  # Log first 200 chars for debugging
+
         # Try to parse as JSON, fallback to raw text if needed
         try:
             import json as json_parser
+            logger.info("Attempting to parse AI response as JSON")
             suggestions_json = json_parser.loads(ai_response)
         except:
-            # If JSON parsing fails, return raw response
-            suggestions_json = ai_response
+            try:
+                import re  
+                logger.info("Attempting to extract JSON from markdown code blocks")
+                # Pattern matches ```json...``` or ```...```
+                json_pattern = r'```(?:json)?\s*(.*?)\s*```'
+                match = re.search(json_pattern, ai_response, re.DOTALL)
+                
+                if match:
+                    json_content = match.group(1).strip()
+                    suggestions_json = json_parser.loads(json_content)
+                    logger.info("Successfully extracted JSON from markdown")
+                else:
+                    # No code blocks found, return raw response
+                    logger.warning("No JSON code blocks found, returning raw text")
+                    suggestions_json = ai_response
+                    
+            except Exception as parse_error:
+                # If regex extraction fails, return raw response
+                logger.warning(f"Failed to extract JSON from markdown: {parse_error}")
+                suggestions_json = ai_response
+
+        # Enhanced response with LinkedIn URLs and connection data
+        enhanced_suggestions = []
+        if isinstance(suggestions_json, list):
+            logger.info(f"Parsed {len(suggestions_json)} suggestions from AI response")
+
+            for suggestion in suggestions_json:
+                # Find matching connection data
+                matching_conn = None
+                for conn in enriched_only[:NUMBER_OF_ENRICHMENTS]:
+                    conn_name = f"{conn['first_name']} {conn['last_name']}"
+                    if suggestion.get("name", "").lower() in conn_name.lower() or conn_name.lower() in suggestion.get("name", "").lower():
+                        matching_conn = conn
+                        break
+                
+                enhanced_suggestion = {
+                    **suggestion,
+                    "linkedin_url": matching_conn.get("url", "") if matching_conn else "",
+                    "profile_summary": matching_conn.get("summary", "") if matching_conn else "",
+                    "location": matching_conn.get("location", "") if matching_conn else "",
+                    "connection_strength": "Medium"  # Default for now
+                }
+                enhanced_suggestions.append(enhanced_suggestion)
         
         return {
             "mission": request.mission,
-            "suggestions": suggestions_json,
+            "suggestions": enhanced_suggestions if enhanced_suggestions else suggestions_json,
             "total_connections": len(all_connections),
             "enriched_connections": len(enriched_only),
             "using_enriched_data": True

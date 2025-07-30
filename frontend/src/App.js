@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { uploadFile, getEnrichmentProgress, getSuggestions } from './api';
+import { uploadFile, getEnrichmentProgress, getSuggestions, generateMessage } from './api';
 import { 
   FileUploadZone, 
   ProgressBar, 
   StatusMessage, 
-  SuggestionCard, 
+  // SuggestionCard, 
   ErrorMessage 
 } from './components';
 
@@ -21,6 +21,12 @@ function App() {
   // Progress tracking
   const [enrichmentProgress, setEnrichmentProgress] = useState(null);
   const [realTimeProgress, setRealTimeProgress] = useState(null);
+
+  // Message generation
+  const [showMessageModal, setShowMessageModal] = useState(false);
+  const [selectedConnection, setSelectedConnection] = useState(null);
+  const [generatedMessage, setGeneratedMessage] = useState('');
+  const [messageLoading, setMessageLoading] = useState(false);
 
   const handleFileSelect = (selectedFile) => {
     if (selectedFile && selectedFile.name.endsWith('.csv')) {
@@ -127,6 +133,41 @@ function App() {
     setSuggestionsLoading(false);
   };
 
+  const handleGenerateMessage = async (suggestion) => {
+    setSelectedConnection(suggestion);
+    setShowMessageModal(true);
+    setMessageLoading(true);
+    setGeneratedMessage('');
+    
+    try {
+      const response = await generateMessage({
+        name: suggestion.name,
+        company: suggestion.company,
+        role: suggestion.role,
+        mission: mission,
+        profile_summary: suggestion.profile_summary || '',
+        location: suggestion.location || ''
+      });
+      
+      setGeneratedMessage(response.message);
+    } catch (err) {
+      setGeneratedMessage('Error generating message. Please try again.');
+      console.error('Error generating message:', err);
+    }
+    setMessageLoading(false);
+  };
+
+    const copyToClipboard = (text) => {
+      navigator.clipboard.writeText(text);
+      // You could add a toast notification here
+    };
+
+    const openLinkedInProfile = (url) => {
+      if (url) {
+        window.open(url, '_blank');
+      }
+    };
+
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-4xl mx-auto px-4">
@@ -203,7 +244,57 @@ function App() {
                   {Array.isArray(suggestions.suggestions) ? (
                     <div className="space-y-4">
                       {suggestions.suggestions.map((suggestion, index) => (
-                        <SuggestionCard key={index} suggestion={suggestion} index={index} />
+                        <div key={index} className="bg-gray-50 p-4 rounded border-l-4 border-blue-500">
+                          <div className="flex justify-between items-start mb-3">
+                            <div>
+                              <h4 className="font-semibold text-lg text-gray-900 mb-1">
+                                {suggestion.name}
+                              </h4>
+                              <p className="text-blue-700 font-medium mb-2">
+                                {suggestion.role} at {suggestion.company}
+                              </p>
+                              {suggestion.location && (
+                                <p className="text-sm text-gray-500 mb-2">📍 {suggestion.location}</p>
+                              )}
+                              {/* <div className="flex items-center mb-2">
+                                <span className="text-sm text-gray-600">Connection Strength:</span>
+                                <span className="ml-2 text-sm font-medium text-yellow-600">
+                                  ⭐⭐⭐ {suggestion.connection_strength || 'Medium'}
+                                </span>
+                              </div> */}
+                            </div>
+                          </div>
+                          
+                          <div className="mb-2">
+                            <span className="font-medium text-gray-700">Why they're relevant:</span>
+                            <p className="text-gray-600 mt-1">{suggestion.reasoning}</p>
+                          </div>
+                          <div className="mb-4">
+                            <span className="font-medium text-gray-700">How they can help:</span>
+                            <p className="text-gray-600 mt-1">{suggestion.how_they_help}</p>
+                          </div>
+                          
+                          {/* Action Buttons */}
+                          <div className="flex gap-3">
+                            <button
+                              onClick={() => handleGenerateMessage(suggestion)} 
+                              className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center gap-2"
+                            >
+                              📧 Generate Message
+                            </button>
+                            <button
+                              onClick={() => openLinkedInProfile(suggestion.linkedin_url)}
+                              disabled={!suggestion.linkedin_url}
+                              className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
+                                suggestion.linkedin_url 
+                                  ? 'bg-blue-700 text-white hover:bg-blue-800' 
+                                  : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                              }`}
+                            >
+                              🔗 View LinkedIn Profile
+                            </button>
+                          </div>
+                        </div>
                       ))}
                     </div>
                   ) : (
@@ -218,6 +309,82 @@ function App() {
                     Based on {suggestions.total_connections} total connections 
                     ({suggestions.enriched_connections} enriched with LinkedIn data)
                   </p>
+                </div>
+              </div>
+            )}
+            {/* Message Generation Modal */}
+            {showMessageModal && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                <div className="bg-white rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[80vh] overflow-y-auto">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-xl font-semibold">
+                      📧 Message for {selectedConnection?.name}
+                    </h3>
+                    <button
+                      onClick={() => setShowMessageModal(false)}
+                      className="text-gray-500 hover:text-gray-700"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  
+                  {selectedConnection && (
+                    <div className="mb-4 p-3 bg-gray-50 rounded">
+                      <p className="text-sm text-gray-600">
+                        <strong>{selectedConnection.role}</strong> at <strong>{selectedConnection.company}</strong>
+                        {selectedConnection.location && ` • ${selectedConnection.location}`}
+                      </p>
+                    </div>
+                  )}
+                  
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Generated Message:
+                    </label>
+                    {messageLoading ? (
+                      <div className="p-4 bg-gray-50 rounded border">
+                        <p className="text-gray-500">Generating personalized message...</p>
+                      </div>
+                    ) : (
+                      <textarea
+                        value={generatedMessage}
+                        onChange={(e) => setGeneratedMessage(e.target.value)}
+                        className="w-full p-3 border border-gray-300 rounded-lg h-48 resize-none"
+                        placeholder="Your personalized message will appear here..."
+                      />
+                    )}
+                  </div>
+                  
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => copyToClipboard(generatedMessage)}
+                      disabled={!generatedMessage || messageLoading}
+                      className={`px-4 py-2 rounded-lg transition-colors ${
+                        generatedMessage && !messageLoading
+                          ? 'bg-green-500 text-white hover:bg-green-600'
+                          : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      }`}
+                    >
+                      📋 Copy to Clipboard
+                    </button>
+                    <button
+                      onClick={() => openLinkedInProfile(selectedConnection?.linkedin_url)}
+                      disabled={!selectedConnection?.linkedin_url}
+                      className={`px-4 py-2 rounded-lg transition-colors ${
+                        selectedConnection?.linkedin_url
+                          ? 'bg-blue-700 text-white hover:bg-blue-800'
+                          : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      }`}
+                    >
+                      🔗 Open LinkedIn to Send
+                    </button>
+                    <button
+                      onClick={() => setShowMessageModal(false)}
+                      className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+                    >
+                      Close
+                    </button>
+                  </div>
                 </div>
               </div>
             )}

@@ -1,195 +1,214 @@
-Here is your content reformatted in clean, organized **Markdown**:
+# 📎 LinkedIn Weak Ties AI Chatbot
+
+An AI-powered full-stack application that helps business professionals leverage their *weak ties* on LinkedIn. Upload your LinkedIn connections and get intelligent recommendations for specific business goals using enriched profile data and AI-powered matching.
 
 ---
 
-# 📎 LinkedIn Weak Ties AI Chatbot MVP
+## 🚀 Key Features
 
-This project is a **Minimum Viable Product (MVP)** for an AI-powered chatbot that helps business professionals leverage their *weak ties* on LinkedIn. It identifies relevant connections for specific business goals (e.g., market expansion) using AI-powered reasoning based on LinkedIn data.
-
----
-
-## 🚀 Features
-
-* **LinkedIn Data Import**: Upload your `connections.csv` from LinkedIn.
-* **Mission Description**: Describe your business goal or mission.
-* **AI-Powered Suggestions**: Get recommended LinkedIn connections based on your mission.
-* **Reasoning**: See why each connection was recommended.
-* **Reconnect Link**: Simulate navigating to the LinkedIn profile.
-* **Local Data Storage**: LinkedIn data is locally parsed and stored for this MVP.
+* **Smart CSV Import**: Upload LinkedIn `connections.csv` with automatic parsing
+* **Profile Enrichment**: Automatically enriches LinkedIn profiles with detailed data (summary, location, industry, company size)
+* **Incremental Processing**: Only processes new connections to minimize API costs
+* **Real-time Progress**: Live progress tracking during profile enrichment
+* **AI-Powered Matching**: GPT-4 analyzes enriched profiles against your mission
+* **Intelligent Reasoning**: Detailed explanations for each recommendation
+* **Background Processing**: Non-blocking profile enrichment
+* **Caching System**: Efficient storage of enriched data
 
 ---
 
-## 🛠️ Technologies Used
+## 🛠️ Technology Stack
 
 ### Frontend
-
-* **React.js**: Component-based JavaScript UI library.
-* **HTML5**: Base markup language.
-* **Tailwind CSS**: Utility-first CSS framework for design.
+* **React.js** - Component-based UI with hooks
+* **Tailwind CSS** - Utility-first styling
+* **Axios** - HTTP client for API communication
+* **Real-time polling** - Progress updates during enrichment
 
 ### Backend
-
-* **Python 3.x**: Core backend language.
-* **FastAPI**: High-performance API framework.
-* **Pandas**: CSV parsing and data analysis.
-* **python-dotenv**: Manage environment variables.
-* **httpx / requests**: Make external HTTP requests.
-
-### External Services
-
-* **Azure AI (GPT-4o)**: Used for generating semantic suggestions and reasoning.
+* **FastAPI** - High-performance Python API framework
+* **Pandas** - CSV processing and data manipulation
+* **Azure OpenAI (GPT-4)** - AI-powered connection matching
+* **RapidAPI LinkedIn Scraper** - Profile enrichment service
+* **Async/Background Tasks** - Non-blocking profile processing
+* **JSON caching** - Efficient data storage
 
 ---
 
-## 📂 Directory Structure
+## 📂 Project Structure
 
 ```
-linkedin-ai-chatbot-mvp/
-├── .gitignore
+linkedin-ai-chatbot/
 ├── README.md
+├── .gitignore
 │
-├── frontend/              
-│   ├── public/            
+├── frontend/
+│   ├── public/
 │   │   └── index.html
-│   ├── src/               
-│   │   ├── App.js         
-│   │   ├── index.js       
-│   │   └── components/    
-│   ├── package.json       
-│   ├── package-lock.json  
-│   └── tailwind.config.js 
+│   ├── src/
+│   │   ├── App.js           # Main React component
+│   │   ├── index.js         # App entry point
+│   │   └── index.css        # Tailwind imports
+│   └── package.json
 │
-├── backend/               
-│   ├── main.py
-│   ├── requirements.txt
+├── backend/
+│   ├── main.py              # FastAPI application
+│   ├── requirements.txt     # Python dependencies
 │   ├── data/
-│   │   └── connections.json 
-│   └── .env               
-│
-└── .env  # Optional project-wide config
+│   │   ├── connections.json         # Raw connections
+│   │   └── connections_enriched.json # Enriched cache
+│   └── .env                 # Environment variables
 ```
 
 ---
 
-## ⚙️ Setup Instructions
+## ⚙️ Setup & Installation
 
-### ✅ Prerequisites
-
-Make sure the following are installed:
-
+### Prerequisites
 * Python 3.8+
-* `pip` (Python package manager)
-* Node.js (LTS recommended)
-* `npm` or `yarn`
-* A modern browser (e.g., Chrome, Firefox)
+* Node.js 16+ 
+* npm or yarn
+* LinkedIn connections CSV export
 
----
-
-### 1. Clone the Repository
-
+### 1. Clone Repository
 ```bash
-git clone https://github.com/your-username/linkedin-ai-chatbot-mvp.git
-cd linkedin-ai-chatbot-mvp
+git clone <repository-url>
+cd linkedin-ai-chatbot
 ```
-
----
 
 ### 2. Backend Setup
-
 ```bash
 cd backend
 python -m venv venv
-source venv/bin/activate   # macOS/Linux
-# venv\Scripts\activate    # Windows
+source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-#### Add Environment Variables
-
-Create a `.env` file in `backend/`:
-
+### 3. Environment Configuration
+Create `backend/.env`:
 ```env
-AZURE_OPENAI_ENDPOINT="https://gateway.ai.cloudflare.com/v1/..."
-AZURE_OPENAI_API_KEY="YOUR_AZURE_AI_API_KEY_HERE"
+AZURE_OPENAI_ENDPOINT=YOUR_ENDPOINT
+AZURE_OPENAI_API_KEY=YOUR_KEY
+RAPIDAPI_KEY=YOUR_KEY
 ```
 
-> ⚠️ **Do not commit `.env`** — it's already in `.gitignore`.
-
----
-
-### 3. Frontend Setup
-
+### 4. Frontend Setup
 ```bash
 cd ../frontend
-npm install  # or yarn install
-```
-
-Ensure `tailwind.config.js` includes:
-
-```js
-module.exports = {
-  content: [
-    "./index.html",
-    "./src/**/*.{js,ts,jsx,tsx}",
-  ],
-  theme: {
-    extend: {},
-  },
-  plugins: [],
-}
+npm install
 ```
 
 ---
 
-## 🚀 How to Run
+## 🚀 Running the Application
 
-### Start Backend (FastAPI)
-
+### Start Backend
 ```bash
 cd backend
-source venv/bin/activate  # or activate on Windows
+source venv/bin/activate
 uvicorn main:app --reload
 ```
+Backend runs on: http://127.0.0.1:8000
 
-> Server usually runs on: [http://127.0.0.1:8000](http://127.0.0.1:8000)
-
----
-
-### Start Frontend (React)
-
+### Start Frontend
 ```bash
 cd frontend
-npm start  # or yarn start
+npm start
 ```
-
-> App will launch on: [http://localhost:3000](http://localhost:3000)
-
----
-
-## 💡 Usage
-
-1. **Upload CSV**: Click "Upload LinkedIn Connections CSV" and select your `connections.csv` file.
-2. **Describe Mission**: Enter your business objective (e.g., market expansion).
-3. **Get Suggestions**: Click "Get Suggestions" to receive AI-generated recommendations.
-4. **Reconnect**: Click "Reconnect" next to a suggestion to simulate profile navigation.
+Frontend runs on: http://localhost:3000
 
 ---
 
-## ✨ Future Enhancements
+## 💡 How to Use
 
-* **Persistent Database**: Replace local storage with PostgreSQL, MongoDB, or Firestore.
-* **Advanced AI Prompting**: Refined prompts for better suggestions.
-* **Semantic Search**: Improved AI matching with vector-based search.
-* **User Authentication**: Beyond the current MVP.
-* **Robust Error Handling**: Better feedback and fault tolerance.
-* **Enhanced UI/UX**: Improve visual design and interaction flow.
+### Step 1: Upload LinkedIn Data
+1. Export your LinkedIn connections as CSV
+2. Drag & drop or browse to upload the file
+3. System automatically parses and identifies new connections
+4. Background enrichment begins for new profiles (up to 5 profiles)
+
+### Step 2: Track Enrichment Progress
+- Real-time progress bar shows enrichment status
+- Each profile takes ~5 seconds to enrich
+- System caches enriched data to avoid re-processing
+
+### Step 3: Get AI Recommendations
+1. Describe your business mission/goal
+2. Click "Get AI Suggestions"
+3. Receive top 4 most relevant connections with detailed reasoning
+4. Each suggestion includes why they're relevant and how they can help
+
+---
+
+## 🏗️ Architecture Highlights
+
+### Smart Enrichment System
+- **Incremental Processing**: Only enriches new connections
+- **URL-based Caching**: Efficient storage using LinkedIn URLs as keys
+- **Rate Limiting**: Respects API limits with 1-second delays
+- **Background Tasks**: Non-blocking async processing
+
+### AI-Powered Matching
+- **Enhanced Prompts**: Uses enriched profile data (not just basic CSV)
+- **Structured Output**: Consistent JSON responses from GPT-4
+- **Context-Aware**: Considers location, industry, company size, summaries
+- **Detailed Reasoning**: Specific explanations for each match
+
+### Real-time Experience
+- **Progress Polling**: Live updates during enrichment
+- **Immediate Feedback**: Instant connection count display
+- **Error Handling**: Comprehensive validation and error messages
+- **Responsive Design**: Clean, professional interface
+
+---
+
+## 🔧 Configuration
+
+### Enrichment Settings
+- **NUMBER_OF_ENRICHMENTS**: Max profiles to enrich per upload (default: 5)
+- **RATE_LIMIT_SLEEP_SECONDS**: Delay between API calls (default: 1)
+
+### API Endpoints
+- `POST /upload-csv` - Upload and process LinkedIn connections
+- `POST /get-suggestions` - Get AI-powered connection recommendations
+- `GET /enrichment-progress` - Real-time enrichment progress
+- `GET /` - Health check
+
+---
+
+## 📈 Future Enhancements
+
+* **Database Integration**: Replace JSON files with PostgreSQL/MongoDB
+* **Batch Enrichment**: Process larger connection lists
+* **Advanced Filtering**: Filter by location, industry, company size
+* **Custom Prompts**: User-defined matching criteria
+* **Email Integration**: Direct outreach templates
+* **Analytics Dashboard**: Connection analysis and insights
+* **Team Collaboration**: Shared connection pools
+* **Mobile App**: Native mobile experience
+
+---
+
+## 🔒 Privacy & Security
+
+* All LinkedIn data processed locally
+* No data sent to third parties except for enrichment APIs
+* Environment variables for sensitive API keys
+* Rate limiting to respect LinkedIn's terms
+* Local caching minimizes external API calls
 
 ---
 
 ## 📄 License
 
-This project is licensed under the **MIT License**. See `LICENSE` for full details.
+MIT License - See LICENSE file for details
 
 ---
 
-Let me know if you'd like a PDF or `.md` file version!
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request

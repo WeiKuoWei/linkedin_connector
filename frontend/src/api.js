@@ -21,3 +21,8 @@ export const getSuggestions = async (mission) => {
   const response = await axios.post(`${API_BASE}/get-suggestions`, { mission });
   return response.data;
 };
+
+export const generateMessage = async (messageData) => {
+  const response = await axios.post(`${API_BASE}/generate-message`, messageData);
+  return response.data;
+};
