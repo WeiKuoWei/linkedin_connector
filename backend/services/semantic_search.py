@@ -1,7 +1,7 @@
 import chromadb
 import logging
 from typing import List, Dict, Any
-from config import chroma_client, embedding_model, client
+from config.settings import chroma_client, embedding_model, client
 
 logger = logging.getLogger(__name__)
 

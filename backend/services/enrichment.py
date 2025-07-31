@@ -2,8 +2,8 @@ import httpx
 import asyncio
 import logging
 import time
-from config import RAPIDAPI_KEY, RAPIDAPI_HOST, MAX_CONCURRENT_REQUESTS, RATE_LIMIT_SLEEP_SECONDS, enrichment_status
-from storage import load_enriched_cache, save_enriched_cache
+from config.settings import RAPIDAPI_KEY, RAPIDAPI_HOST, MAX_CONCURRENT_REQUESTS, RATE_LIMIT_SLEEP_SECONDS, enrichment_status
+from services.storage import load_enriched_cache, save_enriched_cache
 
 logger = logging.getLogger(__name__)
 
@@ -150,7 +150,7 @@ async def background_enrichment(connections_to_enrich):
 
 async def vectorization_catchup(connections_to_vectorize):
     """Background task for vectorizing enriched connections"""
-    from semantic_search import ConnectionSemanticSearch
+    from services.semantic_search import ConnectionSemanticSearch
     
     semantic_search = ConnectionSemanticSearch()
     

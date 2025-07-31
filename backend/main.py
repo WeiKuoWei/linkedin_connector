@@ -4,12 +4,12 @@ import pandas as pd
 import logging
 import io
 
-from config import client, enrichment_status, NUMBER_OF_ENRICHMENTS, MAX_CONCURRENT_REQUESTS
-from storage import load_enriched_cache, save_enriched_cache, save_connections_list
-from enrichment import background_enrichment, vectorization_catchup
-from models import MissionRequest, MessageRequest
-from prompt import get_instructions, get_linkedin_message_prompt
-from semantic_search import ConnectionSemanticSearch
+from config.settings import client, enrichment_status, NUMBER_OF_ENRICHMENTS, MAX_CONCURRENT_REQUESTS
+from services.storage import load_enriched_cache, save_enriched_cache, save_connections_list
+from services.enrichment import background_enrichment, vectorization_catchup
+from config.models import MissionRequest, MessageRequest
+from config.prompts import get_instructions, get_linkedin_message_prompt
+from services.semantic_search import ConnectionSemanticSearch
 
 # Initialize semantic search
 semantic_search = ConnectionSemanticSearch()
