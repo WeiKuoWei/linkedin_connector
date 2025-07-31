@@ -84,6 +84,11 @@ export const StatusMessage = ({ connectionsParsed, connectionsCount, enrichmentP
             : `📊 Using ${enrichmentProgress.total} previously enriched profiles.`
           } Total enriched: {enrichmentProgress.total}
         </p>
+        {enrichmentProgress.needs_vectorization > 0 && (
+          <p className="text-sm text-blue-600 mt-1">
+            🔄 Vectorizing {enrichmentProgress.needs_vectorization} profiles for semantic search...
+          </p>
+        )}
       </div>
       </>
     );

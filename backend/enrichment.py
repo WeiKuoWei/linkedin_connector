@@ -126,11 +126,41 @@ async def background_enrichment(connections_to_enrich):
         
         # Final save
         save_enriched_cache(enriched_cache)
+
+        # Vectorize newly enriched connections
+        newly_enriched = []
+        for connection in connections_to_enrich:
+            if enriched_cache[connection["url"]].get("enriched", False):
+                newly_enriched.append(enriched_cache[connection["url"]])
+        
+        if newly_enriched:
+            logger.info(f"Vectorizing {len(newly_enriched)} newly enriched connections")
+            from semantic_search import ConnectionSemanticSearch
+            semantic_search = ConnectionSemanticSearch()
+            semantic_search.batch_store_embeddings(newly_enriched)
         
     except Exception as e:
         logger.error(f"Error in background enrichment: {str(e)}")
+
     finally:
         # Mark enrichment as completed
         enrichment_status["completed"] = True
         enrichment_status["in_progress"] = False
         logger.info(f"Background enrichment completed. Processed {max_to_enrich} profiles.")
+
+async def vectorization_catchup(connections_to_vectorize):
+    """Background task for vectorizing enriched connections"""
+    from semantic_search import ConnectionSemanticSearch
+    
+    semantic_search = ConnectionSemanticSearch()
+    
+    try:
+        logger.info(f"Starting vectorization catch-up for {len(connections_to_vectorize)} connections")
+        
+        # Vectorize in batches
+        semantic_search.batch_store_embeddings(connections_to_vectorize)
+        
+        logger.info("Vectorization catch-up completed successfully")
+        
+    except Exception as e:
+        logger.error(f"Error in vectorization catch-up: {str(e)}")

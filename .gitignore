@@ -5,10 +5,12 @@ node_modules/
 
 # files that contains _old
 *_old.*
+*test_*
 
 # directories
 data
 context
+chroma_data
 
 # Keep these for reference
 # context/

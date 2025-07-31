@@ -96,7 +96,8 @@ function App() {
           setRealTimeProgress(null);
           setEnrichmentProgress({
             enriched: response.will_enrich,
-            total: response.total_enriched + response.will_enrich
+            total: response.total_enriched + response.will_enrich,
+            needs_vectorization: response.needs_vectorization || 0
           });
         }, 60000); // 1 minute timeout
       } else {
