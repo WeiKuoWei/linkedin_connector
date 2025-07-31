@@ -83,7 +83,7 @@ async def upload_csv(file: UploadFile = File(...), background_tasks: BackgroundT
         # Identify new connections that need enrichment
         new_urls_to_enrich = []
         for conn in new_connections:
-            if conn["url"] not in enriched_cache:
+            if conn["url"] not in enriched_cache or enriched_cache[conn["url"]].get("enriched", False) == False:
                 new_urls_to_enrich.append(conn)
         
         logger.info(f"Found {len(new_urls_to_enrich)} new connections to enrich out of {len(new_connections)} total connections")
