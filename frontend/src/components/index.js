@@ -1,5 +1,5 @@
 import React from 'react';
-import { ENRICHMENT_SECONDS_PER_PROFILE, MAX_CONCURRENT_REQUESTS } from '../constants';
+import { ENRICHMENT_SECONDS_PER_PROFILE, MAX_CONCURRENT_REQUESTS } from '../services/constants';
 
 export const FileUploadZone = ({ file, onFileSelect }) => (
   <div 
@@ -139,3 +139,8 @@ export const ErrorMessage = ({ error }) => error ? (
     {error}
   </div>
 ) : null;
+
+export { default as FileUploadSection } from './FileUploadSection';
+export { default as MissionSection } from './MissionSection';
+export { default as SuggestionsSection } from './SuggestionsSection';
+export { default as MessageModal } from './MessageModal';

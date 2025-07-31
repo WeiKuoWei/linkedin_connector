@@ -19,7 +19,7 @@ async def enrich_profile(url: str):
     
     try:
         async with httpx.AsyncClient() as http_client:
-            start_time = time.time()
+            # start_time = time.time()
             response = await http_client.get(
                 f"https://{RAPIDAPI_HOST}/get-profile-data-by-url",
                 headers=headers,
@@ -27,9 +27,9 @@ async def enrich_profile(url: str):
                 timeout=30.0
             )
 
-            end_time = time.time()
-            duration = end_time - start_time
-            logger.info(f"LinkedIn API call duration for {url}: {duration:.2f} seconds")
+            # end_time = time.time()
+            # duration = end_time - start_time
+            # logger.info(f"LinkedIn API call duration for {url}: {duration:.2f} seconds")
 
             if response.status_code == 200:
                 return response.json()

@@ -12,6 +12,9 @@ NUMBER_OF_ENRICHMENTS = 10
 RATE_LIMIT_SLEEP_SECONDS = 1
 MAX_CONCURRENT_REQUESTS = 10 
 
+# Disable tokenizers parallelism to avoid warnings
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
 # Azure OpenAI client
 client = AzureOpenAI(
     azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
@@ -27,10 +30,6 @@ RAPIDAPI_HOST = "li-data-scraper.p.rapidapi.com"
 CHROMA_PERSIST_PATH = "./chroma_data"
 chroma_client = chromadb.PersistentClient(path=CHROMA_PERSIST_PATH)
 embedding_model = SentenceTransformer('all-mpnet-base-v2')
-
-# Disable telemetry for ChromaDB
-logging.getLogger("chromadb.telemetry.posthog").setLevel(logging.ERROR)
-
 
 # Global progress tracking
 enrichment_status = {
