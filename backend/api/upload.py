@@ -50,7 +50,8 @@ async def upload_csv(file: UploadFile = File(...), background_tasks: BackgroundT
                 "enriched": False
             }
             # Only add if has name and valid URL
-            if connection["first_name"] and connection["last_name"] and connection["url"]:
+            if (connection["first_name"] and connection["last_name"] and 
+                connection["url"] and connection["url"].startswith("https://www.linkedin.com/in/")):
                 new_connections.append(connection)
         
         # Load existing enriched cache (URL-keyed)

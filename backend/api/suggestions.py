@@ -51,6 +51,12 @@ async def get_suggestions(request: MissionRequest):
             
             if conn.get("summary"):
                 info += f" | Summary: {conn['summary'][:100]}..."
+            if conn.get("company"):
+                info += f" | Company: {conn['company']}"
+            if conn.get("current_company"):
+                info += f" | Current Company: {conn['current_company']}"
+            if conn.get("current_title"):
+                info += f" | Current Title: {conn['current_title']}"
             if conn.get("location"):
                 info += f" | Location: {conn['location']}"
             if conn.get("industry"):
@@ -61,10 +67,10 @@ async def get_suggestions(request: MissionRequest):
         prompt = get_instructions(request.mission, connections_text)
         
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-4.1-mini",
             messages=[{"role": "user", "content": prompt}],
             max_tokens=800,
-            temperature=0.7
+            temperature=0.1
         )
         ai_response = response.choices[0].message.content
 
