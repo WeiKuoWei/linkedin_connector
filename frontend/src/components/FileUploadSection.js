@@ -5,6 +5,7 @@ const FileUploadSection = ({
   file,
   onFileSelect,
   onUpload,
+  onRemove,
   uploadLoading,
   connectionsParsed,
   connectionsCount,
@@ -20,17 +21,29 @@ const FileUploadSection = ({
       
       <FileUploadZone file={file} onFileSelect={onFileSelect} />
       
-      <button
-        onClick={onUpload}
-        disabled={!file || uploadLoading}
-        className={`mt-4 px-6 py-2 rounded-lg font-medium ${
-          !file || uploadLoading
-            ? 'bg-gray-300 text-gray-500' 
-            : 'bg-blue-500 hover:bg-blue-600 text-white'
-        }`}
-      >
-        {uploadLoading ? 'Processing...' : 'Upload & Parse'}
-      </button>
+      <div className="flex gap-3 mt-4">
+        <button
+          onClick={onUpload}
+          disabled={!file || uploadLoading}
+          className={`px-6 py-2 rounded-lg font-medium ${
+            !file || uploadLoading
+              ? 'bg-gray-300 text-gray-500' 
+              : 'bg-blue-500 hover:bg-blue-600 text-white'
+          }`}
+        >
+          {uploadLoading ? 'Processing...' : 'Upload & Parse'}
+        </button>
+        
+        {file && (
+          <button
+            onClick={onRemove}
+            disabled={uploadLoading}
+            className="px-6 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:bg-gray-300 disabled:text-gray-500"
+          >
+            Remove File
+          </button>
+        )}
+      </div>
 
       <StatusMessage 
         connectionsParsed={connectionsParsed}

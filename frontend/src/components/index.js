@@ -1,5 +1,5 @@
 import React from 'react';
-import { ENRICHMENT_SECONDS_PER_PROFILE, MAX_CONCURRENT_REQUESTS } from '../services/constants';
+import { ENRICHMENT_SECONDS_PER_PROFILE, MAX_CONCURRENT_REQUESTS, RATE_LIMIT_SLEEP_SECONDS } from '../services/constants';
 
 export const FileUploadZone = ({ file, onFileSelect }) => (
   <div 
@@ -46,7 +46,7 @@ export const FileUploadZone = ({ file, onFileSelect }) => (
 export const ProgressBar = ({ realTimeProgress }) => {
   // Calculate number of batches needed (round up to nearest whole batch)
   const numberOfBatches = Math.ceil(realTimeProgress.total / MAX_CONCURRENT_REQUESTS);
-  const processingTime = numberOfBatches * ENRICHMENT_SECONDS_PER_PROFILE;
+  const processingTime = numberOfBatches * (ENRICHMENT_SECONDS_PER_PROFILE + RATE_LIMIT_SLEEP_SECONDS);
 
   return (
     <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded">

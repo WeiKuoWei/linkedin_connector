@@ -24,7 +24,8 @@ function App() {
     enrichmentProgress,
     realTimeProgress,
     handleFileSelect,
-    handleUpload
+    handleUpload,
+    resetFile
   } = useFileUpload();
 
   const {
@@ -90,6 +91,7 @@ function App() {
               file={file}
               onFileSelect={onFileSelect}
               onUpload={onUpload}
+              onRemove={resetFile} 
               uploadLoading={uploadLoading}
               connectionsParsed={connectionsParsed}
               connectionsCount={connectionsCount}

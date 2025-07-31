@@ -8,6 +8,13 @@ logger = logging.getLogger(__name__)
 class SemanticSearch:
     def __init__(self):
         self.embedding_manager = EmbeddingManager()
+
+        self.weights = {
+            'summary': 1,
+            'position': 1,
+            'industry': 1,
+            'location': 3
+        }
         
     def extract_mission_attributes(self, mission: str) -> Dict[str, str]:
         """Extract structured attributes from mission using LLM"""
@@ -25,7 +32,7 @@ class SemanticSearch:
         
         try:
             response = client.chat.completions.create(
-                model="gpt-4o",
+                model="gpt-4.1",
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=200,
                 temperature=0.1
@@ -60,6 +67,8 @@ class SemanticSearch:
             if query_text == 'N/A':
                 continue
                 
+            weight = self.weights.get(attr, 1.0)
+
             try:
                 # embed the query_text
                 query_embedding = embedding_model.encode([query_text])[0].tolist()
@@ -80,14 +89,15 @@ class SemanticSearch:
                 # Convert distances to similarities and accumulate scores
                 for i, distance in enumerate(results['distances'][0]):
                     conn_id = results['ids'][0][i]
-                    similarity = max(0.0, 1.0 - distance)  # ChromaDB uses distance = 1 - similarity
+                    similarity = max(0.0, 1.0 - distance)
+                    weighted_similarity = similarity * weight 
                     
                     if conn_id not in all_scores:
                         all_scores[conn_id] = {
                             'total_similarity': 0,
                             'metadata': results['metadatas'][0][i]
                         }
-                    all_scores[conn_id]['total_similarity'] += similarity
+                    all_scores[conn_id]['total_similarity'] += weighted_similarity
                     
             except Exception as e:
                 logger.error(f"Failed to search {attr} collection: {e}")
@@ -99,7 +109,7 @@ class SemanticSearch:
             reverse=True
         )[:n_results]
         
-        logger.info(f"Found {len(sorted_connections)} top connections based on mission attributes")
+        logger.info(f"Found {len(sorted_connections)} top connections out of {collection_size} based on mission attributes")
 
         return [
             {

@@ -1,6 +1,8 @@
-from fastapi import FastAPI, BackgroundTasks, UploadFile, File
-from fastapi.middleware.cors import CORSMiddleware
 import logging
+import time
+
+from fastapi import FastAPI, BackgroundTasks, HTTPException, UploadFile, File
+from fastapi.middleware.cors import CORSMiddleware
 
 from config.models import MissionRequest, MessageRequest
 from api.upload import get_enrichment_progress, upload_csv
@@ -31,12 +33,21 @@ async def enrichment_progress():
 
 @app.post("/upload-csv")
 async def upload_csv_endpoint(file: UploadFile = File(...), background_tasks: BackgroundTasks = None):
-    return await upload_csv(file, background_tasks)
+    start_time = time.time()
+    csv_files = await upload_csv(file, background_tasks)
+    logger.info(f"CSV upload processed in {time.time()-start_time:.2f} seconds")
+    return csv_files
 
 @app.post("/get-suggestions")
 async def get_suggestions_endpoint(request: MissionRequest):
-    return await get_suggestions(request)
+    start_time = time.time()
+    suggestions = await get_suggestions(request)
+    logger.info(f"Processed mission request in {time.time()-start_time:.2f} seconds")
+    return suggestions
 
 @app.post("/generate-message")
 async def generate_message_endpoint(request: MessageRequest):
-    return await generate_message(request)
+    start_time = time.time()
+    response = await generate_message(request)
+    logger.info(f"Processed message request in {time.time()-start_time:.2f} seconds")
+    return response

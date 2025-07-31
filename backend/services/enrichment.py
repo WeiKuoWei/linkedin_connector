@@ -81,13 +81,12 @@ def format_enriched_connection(connection, enriched_data):
         "company_size": current_position.get("companyStaffCountRange", "")
     }
 
-# Replace the entire background_enrichment function with:
 async def background_enrichment(connections_to_enrich):
     """Background task for enriching profiles with parallel processing"""
     global enrichment_status
     
     enriched_cache = load_enriched_cache()
-    max_to_enrich = len(connections_to_enrich)  # Changed: enrich ALL connections
+    max_to_enrich = len(connections_to_enrich)  
     
     # Initialize progress tracking
     enrichment_status["current"] = 0
@@ -100,7 +99,7 @@ async def background_enrichment(connections_to_enrich):
     
     async def enrich_single_connection(connection, index):
         async with semaphore:
-            logger.info(f"Enriching connection {index+1}/{max_to_enrich}: {connection['first_name']} {connection['last_name']}")
+            # logger.info(f"Enriching connection {index+1}/{max_to_enrich}: {connection['first_name']} {connection['last_name']}")
             
             enriched_data = await enrich_profile(connection["url"])
             enriched_connection = format_enriched_connection(connection, enriched_data)
@@ -137,7 +136,6 @@ async def background_enrichment(connections_to_enrich):
         
         if newly_enriched:
             logger.info(f"Vectorizing {len(newly_enriched)} newly enriched connections")
-            from backend.services.semantic_search_old import ConnectionSemanticSearch
             semantic_search = ConnectionSemanticSearch()
             semantic_search.batch_store_embeddings(newly_enriched)
         
@@ -151,9 +149,7 @@ async def background_enrichment(connections_to_enrich):
         logger.info(f"Background enrichment completed. Processed {max_to_enrich} profiles.")
 
 async def vectorization_catchup(connections_to_vectorize):
-    """Background task for vectorizing enriched connections"""
-    from backend.services.semantic_search_old import ConnectionSemanticSearch
-    
+    """Background task for vectorizing enriched connections"""    
     semantic_search = ConnectionSemanticSearch()
     
     try:

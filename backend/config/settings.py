@@ -9,8 +9,8 @@ load_dotenv()
 
 # Configuration constants
 NUMBER_OF_ENRICHMENTS = 10
-RATE_LIMIT_SLEEP_SECONDS = 1
-MAX_CONCURRENT_REQUESTS = 10 
+RATE_LIMIT_SLEEP_SECONDS = 3.5
+MAX_CONCURRENT_REQUESTS = 5 
 
 # Disable tokenizers parallelism to avoid warnings
 os.environ["TOKENIZERS_PARALLELISM"] = "false"

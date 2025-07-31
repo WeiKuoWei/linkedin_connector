@@ -12,10 +12,19 @@ export const useFileUpload = () => {
   const handleFileSelect = (selectedFile) => {
     if (selectedFile && selectedFile.name.endsWith('.csv')) {
       setFile(selectedFile);
-      return null; // No error
+      return null;
     } else {
       return 'Please select a CSV file';
     }
+  };
+
+  // Add reset function
+  const resetFile = () => {
+    setFile(null);
+    setConnectionsParsed(false);
+    setConnectionsCount(0);
+    setEnrichmentProgress(null);
+    setRealTimeProgress(null);
   };
 
   const handleUpload = async () => {
@@ -40,33 +49,34 @@ export const useFileUpload = () => {
         
         // Poll for progress updates
         const pollProgress = setInterval(async () => {
-          try {
-            const progressData = await getEnrichmentProgress();
-            const { current, total, completed, in_progress } = progressData;
-            
-            // Only update if enrichment is actually in progress
-            if (in_progress || !completed) {
-              setRealTimeProgress({ current, total });
+            try {
+                const progressData = await getEnrichmentProgress();
+                const { current, total, completed, in_progress } = progressData;
+                
+                // Always update progress if in progress
+                if (in_progress) {
+                    setRealTimeProgress({ current, total });
+                }
+                
+                // Check for completion - simplified condition
+                if (completed) {
+                    clearInterval(pollProgress);
+                    setRealTimeProgress(null);  // Hide progress bar
+                    
+                    // Show completion message
+                    setEnrichmentProgress({
+                        enriched: total,  // Use actual total from backend
+                        total: response.total_enriched + total
+                    });
+                    
+                    console.log(`Enrichment completed! ${total} profiles were enriched.`);
+                }
+            } catch (err) {
+                clearInterval(pollProgress);
+                console.error('Error polling progress:', err);
+                setRealTimeProgress(null);
             }
-            
-            if (completed && !in_progress) {
-              clearInterval(pollProgress);
-              setRealTimeProgress(null);
-              
-              // Show completion message
-              setEnrichmentProgress({
-                enriched: response.will_enrich,
-                total: response.total_enriched + response.will_enrich
-              });
-              
-              console.log(`Enrichment completed! ${response.will_enrich} profiles were enriched.`);
-            }
-          } catch (err) {
-            clearInterval(pollProgress);
-            console.error('Error polling progress:', err);
-            setRealTimeProgress(null);
-          }
-        }, 5000);
+        }, 2000);  // Poll every 2 seconds instead of 5
         
         // Fallback timeout to prevent infinite polling
         setTimeout(() => {
@@ -104,6 +114,7 @@ export const useFileUpload = () => {
     enrichmentProgress,
     realTimeProgress,
     handleFileSelect,
-    handleUpload
+    handleUpload,
+    resetFile
   };
 };

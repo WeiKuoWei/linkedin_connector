@@ -20,7 +20,7 @@ async def generate_message(request: MessageRequest):
         )
         
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-4.1-mini",
             messages=[{"role": "user", "content": prompt}],
             max_tokens=500,
             temperature=0.7
