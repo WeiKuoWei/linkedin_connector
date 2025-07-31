@@ -4,7 +4,7 @@ import pandas as pd
 import logging
 import io
 
-from config import client, enrichment_status, NUMBER_OF_ENRICHMENTS
+from config import client, enrichment_status, NUMBER_OF_ENRICHMENTS, MAX_CONCURRENT_REQUESTS
 from storage import load_enriched_cache, save_enriched_cache, save_connections_list
 from enrichment import background_enrichment
 from models import MissionRequest, MessageRequest
@@ -107,11 +107,11 @@ async def upload_csv(file: UploadFile = File(...), background_tasks: BackgroundT
         
         total_enriched = sum(1 for conn in enriched_cache.values() if conn.get("enriched", False))
         
-        # Start background enrichment if there are new connections
-        will_enrich = min(NUMBER_OF_ENRICHMENTS, len(new_urls_to_enrich))
+        # Enrich ALL new connections
+        will_enrich = len(new_urls_to_enrich) 
         if new_urls_to_enrich and background_tasks:
             background_tasks.add_task(background_enrichment, new_urls_to_enrich)
-        
+
         return {
             "message": f"Successfully processed {len(new_connections)} connections",
             "count": len(new_connections),
@@ -200,7 +200,7 @@ async def get_suggestions(request: MissionRequest):
         
         prompt = get_instructions(request.mission, connections_text)
         
-        logger.info(f"Generated prompt for AI: {prompt}")  # Log first 200 chars for debugging
+        # logger.info(f"Generated prompt for AI: {prompt}")  # Log first 200 chars for debugging
 
         response = client.chat.completions.create(
             model="gpt-4o",
@@ -210,7 +210,7 @@ async def get_suggestions(request: MissionRequest):
         )
         ai_response = response.choices[0].message.content
 
-        logger.info(f"AI response: {ai_response[:200]}...")  # Log first 200 chars for debugging
+        # logger.info(f"AI response: {ai_response[:200]}...")  # Log first 200 chars for debugging
 
         # Try to parse as JSON, fallback to raw text if needed
         try:

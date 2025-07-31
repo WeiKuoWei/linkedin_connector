@@ -7,6 +7,7 @@ load_dotenv()
 # Configuration constants
 NUMBER_OF_ENRICHMENTS = 10
 RATE_LIMIT_SLEEP_SECONDS = 1
+MAX_CONCURRENT_REQUESTS = 10 
 
 # Azure OpenAI client
 client = AzureOpenAI(

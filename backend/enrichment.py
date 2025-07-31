@@ -2,7 +2,7 @@ import httpx
 import asyncio
 import logging
 import time
-from config import RAPIDAPI_KEY, RAPIDAPI_HOST, NUMBER_OF_ENRICHMENTS, RATE_LIMIT_SLEEP_SECONDS, enrichment_status
+from config import RAPIDAPI_KEY, RAPIDAPI_HOST, MAX_CONCURRENT_REQUESTS, RATE_LIMIT_SLEEP_SECONDS, enrichment_status
 from storage import load_enriched_cache, save_enriched_cache
 
 logger = logging.getLogger(__name__)
@@ -79,13 +79,13 @@ def format_enriched_connection(connection, enriched_data):
         "company_size": current_position.get("companyStaffCountRange", "")
     }
 
+# Replace the entire background_enrichment function with:
 async def background_enrichment(connections_to_enrich):
-    """Background task for enriching profiles"""
+    """Background task for enriching profiles with parallel processing"""
     global enrichment_status
     
     enriched_cache = load_enriched_cache()
-    enrichment_count = 0
-    max_to_enrich = min(NUMBER_OF_ENRICHMENTS, len(connections_to_enrich))
+    max_to_enrich = len(connections_to_enrich)  # Changed: enrich ALL connections
     
     # Initialize progress tracking
     enrichment_status["current"] = 0
@@ -93,30 +93,36 @@ async def background_enrichment(connections_to_enrich):
     enrichment_status["completed"] = False
     enrichment_status["in_progress"] = True
     
-    try:
-        for i, connection in enumerate(connections_to_enrich[:max_to_enrich]):
-            logger.info(f"Enriching new connection {i+1}/{max_to_enrich}: {connection['first_name']} {connection['last_name']}")
-            
-            # Update progress
-            enrichment_status["current"] = i + 1
+    # Semaphore to limit concurrent requests
+    semaphore = asyncio.Semaphore(MAX_CONCURRENT_REQUESTS)
+    
+    async def enrich_single_connection(connection, index):
+        async with semaphore:
+            logger.info(f"Enriching connection {index+1}/{max_to_enrich}: {connection['first_name']} {connection['last_name']}")
             
             enriched_data = await enrich_profile(connection["url"])
             enriched_connection = format_enriched_connection(connection, enriched_data)
             
-            # Add to cache with URL as key
+            # Thread-safe cache update
             enriched_cache[connection["url"]] = enriched_connection
-            enrichment_count += 1
             
-            # Save cache after each enrichment
-            save_enriched_cache(enriched_cache)
+            # Update progress
+            enrichment_status["current"] = index + 1
             
-            # Respect rate limits
+            # Rate limiting between requests
             await asyncio.sleep(RATE_LIMIT_SLEEP_SECONDS)
+            
+            return enriched_connection
+    
+    try:
+        # Create tasks for all connections
+        tasks = [
+            enrich_single_connection(conn, i) 
+            for i, conn in enumerate(connections_to_enrich)
+        ]
         
-        # Add remaining new connections (not enriched due to limit) to cache
-        for connection in connections_to_enrich[max_to_enrich:]:
-            connection["enriched"] = False
-            enriched_cache[connection["url"]] = connection
+        # Execute all tasks in parallel
+        await asyncio.gather(*tasks, return_exceptions=True)
         
         # Final save
         save_enriched_cache(enriched_cache)
@@ -127,4 +133,4 @@ async def background_enrichment(connections_to_enrich):
         # Mark enrichment as completed
         enrichment_status["completed"] = True
         enrichment_status["in_progress"] = False
-        logger.info(f"Background enrichment completed. Enriched {enrichment_count} profiles.")
+        logger.info(f"Background enrichment completed. Processed {max_to_enrich} profiles.")

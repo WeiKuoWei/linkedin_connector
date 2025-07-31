@@ -27,6 +27,7 @@ function App() {
   const [selectedConnection, setSelectedConnection] = useState(null);
   const [generatedMessage, setGeneratedMessage] = useState('');
   const [messageLoading, setMessageLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const handleFileSelect = (selectedFile) => {
     if (selectedFile && selectedFile.name.endsWith('.csv')) {
@@ -159,7 +160,8 @@ function App() {
 
     const copyToClipboard = (text) => {
       navigator.clipboard.writeText(text);
-      // You could add a toast notification here
+      setCopied(true);
+      setTimeout(() => setCopied(false), 3000); // Reset after 3 seconds
     };
 
     const openLinkedInProfile = (url) => {
@@ -365,7 +367,7 @@ function App() {
                           : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                       }`}
                     >
-                      📋 Copy to Clipboard
+                      {copied ? '✅ Copied to Clipboard!' : '📋 Copy to Clipboard'}
                     </button>
                     <button
                       onClick={() => openLinkedInProfile(selectedConnection?.linkedin_url)}

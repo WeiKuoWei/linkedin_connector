@@ -1,5 +1,5 @@
 import React from 'react';
-import { ENRICHMENT_SECONDS_PER_PROFILE } from '../constants';
+import { ENRICHMENT_SECONDS_PER_PROFILE, MAX_CONCURRENT_REQUESTS } from '../constants';
 
 export const FileUploadZone = ({ file, onFileSelect }) => (
   <div 
@@ -62,7 +62,7 @@ export const ProgressBar = ({ realTimeProgress }) => (
       ></div>
     </div>
     <p className="text-xs text-blue-600 mt-1">
-      Takes up to {realTimeProgress.total * ENRICHMENT_SECONDS_PER_PROFILE} seconds to process...
+      Takes up to {realTimeProgress.total * ENRICHMENT_SECONDS_PER_PROFILE / MAX_CONCURRENT_REQUESTS} seconds to process...
     </p>
   </div>
 );
