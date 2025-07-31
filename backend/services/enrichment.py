@@ -4,6 +4,8 @@ import logging
 import time
 from config.settings import RAPIDAPI_KEY, RAPIDAPI_HOST, MAX_CONCURRENT_REQUESTS, RATE_LIMIT_SLEEP_SECONDS, enrichment_status
 from services.storage import load_enriched_cache, save_enriched_cache
+from services.search import ConnectionSemanticSearch
+
 
 logger = logging.getLogger(__name__)
 
@@ -135,7 +137,7 @@ async def background_enrichment(connections_to_enrich):
         
         if newly_enriched:
             logger.info(f"Vectorizing {len(newly_enriched)} newly enriched connections")
-            from semantic_search import ConnectionSemanticSearch
+            from backend.services.semantic_search_old import ConnectionSemanticSearch
             semantic_search = ConnectionSemanticSearch()
             semantic_search.batch_store_embeddings(newly_enriched)
         
@@ -150,7 +152,7 @@ async def background_enrichment(connections_to_enrich):
 
 async def vectorization_catchup(connections_to_vectorize):
     """Background task for vectorizing enriched connections"""
-    from services.semantic_search import ConnectionSemanticSearch
+    from backend.services.semantic_search_old import ConnectionSemanticSearch
     
     semantic_search = ConnectionSemanticSearch()
     

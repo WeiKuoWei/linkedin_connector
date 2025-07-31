@@ -44,9 +44,9 @@ export const FileUploadZone = ({ file, onFileSelect }) => (
 );
 
 export const ProgressBar = ({ realTimeProgress }) => {
-  const processingTime = realTimeProgress.total > MAX_CONCURRENT_REQUESTS 
-  ? realTimeProgress.total * ENRICHMENT_SECONDS_PER_PROFILE / MAX_CONCURRENT_REQUESTS 
-  : realTimeProgress.total * ENRICHMENT_SECONDS_PER_PROFILE;
+  // Calculate number of batches needed (round up to nearest whole batch)
+  const numberOfBatches = Math.ceil(realTimeProgress.total / MAX_CONCURRENT_REQUESTS);
+  const processingTime = numberOfBatches * ENRICHMENT_SECONDS_PER_PROFILE;
 
   return (
     <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded">
