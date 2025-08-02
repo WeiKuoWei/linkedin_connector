@@ -19,12 +19,7 @@ ENV PATH="/opt/venv/bin:$PATH"
 
 # Copy and install Python dependencies
 COPY requirements.txt /tmp/
-RUN pip install --no-cache-dir torch==2.7.1 --index-url https://download.pytorch.org/whl/cpu && \
-    pip install --no-cache-dir -r /tmp/requirements.txt
-
-# Pre-download the sentence transformer model to avoid runtime downloads
-# RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')"
-RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-mpnet-base-v2')"
+RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
 
 # Production stage
@@ -34,20 +29,16 @@ FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     TOKENIZERS_PARALLELISM=false \
-    PATH="/opt/venv/bin:$PATH" \
-    TRANSFORMERS_CACHE=/app/.cache \
-    HF_HOME=/app/.cache
+    PATH="/opt/venv/bin:$PATH"
 
-# Copy virtual environment and model cache from builder stage
 COPY --from=builder /opt/venv /opt/venv
-COPY --from=builder /root/.cache /app/.cache
 
 # Create app directory and non-root user
 RUN groupadd -r appuser && useradd -r -g appuser appuser
 WORKDIR /app
 
 # Create directories for data persistence and cache
-RUN mkdir -p data chroma_data .cache && \
+RUN mkdir -p data chroma_data && \
     chown -R appuser:appuser /app
 
 # Copy application code
