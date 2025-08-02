@@ -2,6 +2,7 @@
 # files
 node_modules/
 .env
+.DS_Store
 
 # files that contains _old
 *_old*

@@ -1,5 +1,6 @@
 import logging
 import time
+import os
 
 from fastapi import FastAPI, BackgroundTasks, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,7 +18,10 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=[
+        "http://localhost:3000",
+        "https://linkedin-connector.vercel.app"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -51,3 +55,9 @@ async def generate_message_endpoint(request: MessageRequest):
     response = await generate_message(request)
     logger.info(f"Processed message request in {time.time()-start_time:.2f} seconds")
     return response
+
+
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run("main:app", host="0.0.0.0", port=port)

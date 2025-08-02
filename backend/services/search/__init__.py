@@ -1,5 +1,6 @@
 from .embeddings import EmbeddingManager
 from .semantic import SemanticSearch
+from config.settings import N_RESULTS
 
 class ConnectionSemanticSearch:
     """Legacy wrapper for backward compatibility"""
@@ -22,7 +23,7 @@ class ConnectionSemanticSearch:
     def extract_mission_attributes(self, mission: str):
         return self.semantic_search.extract_mission_attributes(mission)
     
-    def search_top_connections(self, mission_attributes, n_results: int = 15):
+    def search_top_connections(self, mission_attributes, n_results: int = N_RESULTS):
         return self.semantic_search.search_top_connections(mission_attributes, n_results)
 
 __all__ = ['ConnectionSemanticSearch', 'EmbeddingManager', 'SemanticSearch']

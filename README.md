@@ -119,7 +119,7 @@ Backend runs on: http://127.0.0.1:8000
 ### Start Frontend
 ```bash
 cd frontend
-npm start
+npm start run
 ```
 Frontend runs on: http://localhost:3000
 
@@ -165,7 +165,7 @@ Frontend runs on: http://localhost:3000
 - **CHROMA_PERSIST_PATH**: ChromaDB storage location
 
 ### Semantic Search Configuration
-- **Embedding Model**: all-mpnet-base-v2 (384 dimensions)
+- **Embedding Model**: all-mpnet-base-v2 (768 dimensions)
 - **Search Attributes**: summary, position, location, industry
 - **Similarity Metric**: Cosine similarity
 - **Top-K Results**: Configurable result limits

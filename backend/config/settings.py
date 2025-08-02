@@ -11,6 +11,7 @@ load_dotenv()
 NUMBER_OF_ENRICHMENTS = 10
 RATE_LIMIT_SLEEP_SECONDS = 3.5
 MAX_CONCURRENT_REQUESTS = 5 
+N_RESULTS = 10
 
 # Disable tokenizers parallelism to avoid warnings
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -29,7 +30,8 @@ RAPIDAPI_HOST = "li-data-scraper.p.rapidapi.com"
 # ChromaDB configuration
 CHROMA_PERSIST_PATH = "./chroma_data"
 chroma_client = chromadb.PersistentClient(path=CHROMA_PERSIST_PATH)
-embedding_model = SentenceTransformer('all-mpnet-base-v2')
+# embedding_model = SentenceTransformer('all-mpnet-base-v2')
+embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
 
 # Global progress tracking
 enrichment_status = {

@@ -1,6 +1,6 @@
 import logging
 from typing import List, Dict, Any
-from config.settings import client
+from config.settings import client, N_RESULTS
 from .embeddings import EmbeddingManager
 
 logger = logging.getLogger(__name__)
@@ -13,7 +13,7 @@ class SemanticSearch:
             'summary': 1,
             'position': 1,
             'industry': 1,
-            'location': 3
+            'location': 1
         }
         
     def extract_mission_attributes(self, mission: str) -> Dict[str, str]:
@@ -55,7 +55,7 @@ class SemanticSearch:
                 'industry': 'N/A'
             }
     
-    def search_top_connections(self, mission_attributes: Dict[str, str], n_results: int = 15) -> List[Dict]:
+    def search_top_connections(self, mission_attributes: Dict[str, str], n_results: int = N_RESULTS) -> List[Dict]:
         """Search for top connections using semantic similarity across all attributes"""
         from config.settings import embedding_model
         
