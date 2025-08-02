@@ -81,12 +81,44 @@ def format_enriched_connection(connection, enriched_data):
         "company_size": current_position.get("companyStaffCountRange", "")
     }
 
+async def enrich_single_connection(connection, index, semantic_search):
+    async with semaphore:
+        start_time = time.time()
+        
+        # Step 1: Enrichment
+        enriched_data = await enrich_profile(connection["url"])
+        enriched_connection = format_enriched_connection(connection, enriched_data)
+        
+        # Step 2: Immediate vectorization if enrichment succeeded
+        if enriched_connection.get("enriched", False):
+            try:
+                semantic_search.store_connection_embeddings(enriched_connection)
+                logger.info(f"✅ Enriched + Vectorized: {enriched_connection['first_name']} {enriched_connection['last_name']}")
+            except Exception as e:
+                logger.error(f"❌ Vectorization failed for {connection['url']}: {str(e)}")
+                # Still mark as enriched even if vectorization fails
+        
+        # Thread-safe cache update
+        enriched_cache[connection["url"]] = enriched_connection
+        
+        # Update progress (only count as complete if both enriched and vectorized)
+        enrichment_status["current"] = index + 1
+        
+        # Performance logging
+        duration = time.time() - start_time
+        logger.info(f"⏱️ Connection {index+1} processed in {duration:.2f}s")
+        
+        # Rate limiting
+        await asyncio.sleep(RATE_LIMIT_SLEEP_SECONDS)
+        
+        return enriched_connection
+
 async def background_enrichment(connections_to_enrich):
-    """Background task for enriching profiles with parallel processing"""
+    """Background task for enriching profiles with immediate vectorization"""
     global enrichment_status
     
     enriched_cache = load_enriched_cache()
-    max_to_enrich = len(connections_to_enrich)  
+    max_to_enrich = len(connections_to_enrich)
     
     # Initialize progress tracking
     enrichment_status["current"] = 0
@@ -94,26 +126,50 @@ async def background_enrichment(connections_to_enrich):
     enrichment_status["completed"] = False
     enrichment_status["in_progress"] = True
     
-    # Semaphore to limit concurrent requests
+    # Initialize semantic search for vectorization
+    semantic_search = ConnectionSemanticSearch()
+    
+    # Semaphore to limit concurrent requests (THIS WAS MISSING)
     semaphore = asyncio.Semaphore(MAX_CONCURRENT_REQUESTS)
+    
+    # Performance tracking
+    pipeline_start_time = time.time()
     
     async def enrich_single_connection(connection, index):
         async with semaphore:
-            # logger.info(f"Enriching connection {index+1}/{max_to_enrich}: {connection['first_name']} {connection['last_name']}")
+            start_time = time.time()
+            logger.info(f"Processing connection {index+1}/{max_to_enrich}: {connection['first_name']} {connection['last_name']}")
             
-            enriched_data = await enrich_profile(connection["url"])
-            enriched_connection = format_enriched_connection(connection, enriched_data)
-            
-            # Thread-safe cache update
-            enriched_cache[connection["url"]] = enriched_connection
-            
-            # Update progress
-            enrichment_status["current"] = index + 1
-            
-            # Rate limiting between requests
-            await asyncio.sleep(RATE_LIMIT_SLEEP_SECONDS)
-            
-            return enriched_connection
+            try:
+                # Step 1: Enrichment
+                enriched_data = await enrich_profile(connection["url"])
+                enriched_connection = format_enriched_connection(connection, enriched_data)
+                
+                # Step 2: Immediate vectorization if enrichment succeeded
+                if enriched_connection.get("enriched", False):
+                    try:
+                        semantic_search.store_connection_embeddings(enriched_connection)
+                        logger.info(f"✅ Enriched + Vectorized: {enriched_connection['first_name']} {enriched_connection['last_name']}")
+                    except Exception as e:
+                        logger.error(f"❌ Vectorization failed for {connection['url']}: {str(e)}")
+                
+                # Thread-safe cache update
+                enriched_cache[connection["url"]] = enriched_connection
+                
+                # Update progress
+                enrichment_status["current"] = index + 1
+                
+                # Performance logging
+                logger.info(f"Connection {index+1} processed")
+
+                # Rate limiting
+                await asyncio.sleep(RATE_LIMIT_SLEEP_SECONDS)
+                
+                return enriched_connection
+                
+            except Exception as e:
+                logger.error(f"❌ Failed to process connection {index+1}: {str(e)}")
+                return None
     
     try:
         # Create tasks for all connections
@@ -123,30 +179,29 @@ async def background_enrichment(connections_to_enrich):
         ]
         
         # Execute all tasks in parallel
-        await asyncio.gather(*tasks, return_exceptions=True)
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # Log any exceptions
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                logger.error(f"Task {i+1} failed with exception: {str(result)}")
         
         # Final save
         save_enriched_cache(enriched_cache)
-
-        # Vectorize newly enriched connections
-        newly_enriched = []
-        for connection in connections_to_enrich:
-            if enriched_cache[connection["url"]].get("enriched", False):
-                newly_enriched.append(enriched_cache[connection["url"]])
         
-        if newly_enriched:
-            logger.info(f"Vectorizing {len(newly_enriched)} newly enriched connections")
-            semantic_search = ConnectionSemanticSearch()
-            semantic_search.batch_store_embeddings(newly_enriched)
+        # Performance logging
+        total_duration = time.time() - pipeline_start_time
+        avg_duration = total_duration / max_to_enrich if max_to_enrich > 0 else 0
+        logger.info(f"🏁 Pipeline completed: {total_duration:.2f}s total, {avg_duration:.2f}s avg per connection")
         
     except Exception as e:
-        logger.error(f"Error in background enrichment: {str(e)}")
+        logger.error(f"Error in background enrichment pipeline: {str(e)}")
 
     finally:
         # Mark enrichment as completed
         enrichment_status["completed"] = True
         enrichment_status["in_progress"] = False
-        logger.info(f"Background enrichment completed. Processed {max_to_enrich} profiles.")
+        logger.info(f"Background enrichment pipeline completed. Processed {max_to_enrich} profiles.")
 
 async def vectorization_catchup(connections_to_vectorize):
     """Background task for vectorizing enriched connections"""    

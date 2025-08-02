@@ -1,5 +1,5 @@
 import React from 'react';
-import { ENRICHMENT_SECONDS_PER_PROFILE, MAX_CONCURRENT_REQUESTS, RATE_LIMIT_SLEEP_SECONDS } from '../services/constants';
+import { ENRICHMENT_SECONDS_PER_PROFILE, MAX_CONCURRENT_REQUESTS, RATE_LIMIT_SLEEP_SECONDS, VECTORIZATION_SECONDS_PER_PROFILE } from '../services/constants';
 
 export const FileUploadZone = ({ file, onFileSelect }) => (
   <div 
@@ -44,9 +44,9 @@ export const FileUploadZone = ({ file, onFileSelect }) => (
 );
 
 export const ProgressBar = ({ realTimeProgress }) => {
-  // Calculate number of batches needed (round up to nearest whole batch)
   const numberOfBatches = Math.ceil(realTimeProgress.total / MAX_CONCURRENT_REQUESTS);
-  const processingTime = numberOfBatches * (ENRICHMENT_SECONDS_PER_PROFILE + RATE_LIMIT_SLEEP_SECONDS);
+  const TOTAL_PROCESSING_TIME_PER_PROFILE = ENRICHMENT_SECONDS_PER_PROFILE + VECTORIZATION_SECONDS_PER_PROFILE;
+  const processingTime = numberOfBatches * (TOTAL_PROCESSING_TIME_PER_PROFILE + RATE_LIMIT_SLEEP_SECONDS);
 
   return (
     <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded">
@@ -89,13 +89,8 @@ export const StatusMessage = ({ connectionsParsed, connectionsCount, enrichmentP
           {enrichmentProgress.enriched > 0 
             ? `✨ Enriched ${enrichmentProgress.enriched} new profiles with LinkedIn data.`
             : `📊 Using ${enrichmentProgress.total} previously enriched profiles.`
-          } Total enriched: {enrichmentProgress.total}
+          } Total enriched connections: {enrichmentProgress.total}
         </p>
-        {enrichmentProgress.needs_vectorization > 0 && (
-          <p className="text-sm text-blue-600 mt-1">
-            🔄 Vectorizing {enrichmentProgress.needs_vectorization} profiles for semantic search...
-          </p>
-        )}
       </div>
       </>
     );

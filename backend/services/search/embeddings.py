@@ -58,28 +58,26 @@ class EmbeddingManager:
         """Store embeddings for a single connection across all attributes"""
         conn_id = connection.get('url', '').replace('https://www.linkedin.com/in/', '')
         if not conn_id:
-            return
+            return False
         
-        # Prepare texts for each attribute
-        texts = {
-            'summary': connection.get('summary', '') or 'N/A',
-            'position': connection.get('headline', '') or connection.get('position', '') or 'N/A',
-            'location': connection.get('location', '') or 'N/A',
-            'industry': connection.get('industry', '') or 'N/A'
-        }
-        
-        # Store embeddings in each collection
-        for attr in self.attributes:
-            try:
-                # Generate embedding
-                # embedding = embedding_model.encode([texts[attr]])[0].tolist()
-                embedding = get_embeddings([texts[attr]])[0]
-
-                
-                # Store in ChromaDB
+        try:
+            # Prepare texts for each attribute
+            texts = {
+                'summary': connection.get('summary', '') or 'N/A',
+                'position': connection.get('headline', '') or connection.get('position', '') or 'N/A',
+                'location': connection.get('location', '') or 'N/A',
+                'industry': connection.get('industry', '') or 'N/A'
+            }
+            
+            # Get all embeddings in parallel (single API call)
+            text_list = [texts[attr] for attr in self.attributes]
+            embeddings = get_embeddings(text_list)
+            
+            # Store embeddings in each collection
+            for i, attr in enumerate(self.attributes):
                 self.collections[attr].upsert(
                     ids=[conn_id],
-                    embeddings=[embedding],
+                    embeddings=[embeddings[i]],
                     documents=[texts[attr]],
                     metadatas=[{
                         'name': f"{connection.get('first_name', '')} {connection.get('last_name', '')}",
@@ -87,9 +85,13 @@ class EmbeddingManager:
                         'url': connection.get('url', '')
                     }]
                 )
-            except Exception as e:
-                logger.error(f"Failed to store embedding for {attr}: {e}")
-
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to store embeddings for {conn_id}: {e}")
+            return False
+        
     def batch_store_embeddings(self, connections: List[Dict[str, Any]]):
         """Store embeddings for multiple connections in batches"""
         batch_size = 50  # Process in smaller batches

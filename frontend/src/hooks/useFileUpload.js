@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { uploadFile, getEnrichmentProgress } from '../services/api';
-import { ENRICHMENT_SECONDS_PER_PROFILE, MAX_CONCURRENT_REQUESTS } from '../services/constants';
+import { ENRICHMENT_SECONDS_PER_PROFILE, MAX_CONCURRENT_REQUESTS, RATE_LIMIT_SLEEP_SECONDS, VECTORIZATION_SECONDS_PER_PROFILE } from '../services/constants';
 
 export const useFileUpload = () => {
   const [file, setFile] = useState(null);
@@ -49,7 +49,9 @@ export const useFileUpload = () => {
         setRealTimeProgress({ current: 0, total: response.will_enrich });
         
         const numberOfBatches = Math.ceil(response.will_enrich / MAX_CONCURRENT_REQUESTS);
-        const estimatedProcessingTime = numberOfBatches * ENRICHMENT_SECONDS_PER_PROFILE;
+        
+        const TOTAL_PROCESSING_TIME_PER_PROFILE = ENRICHMENT_SECONDS_PER_PROFILE + VECTORIZATION_SECONDS_PER_PROFILE;
+        const estimatedProcessingTime = numberOfBatches * (TOTAL_PROCESSING_TIME_PER_PROFILE + RATE_LIMIT_SLEEP_SECONDS);
         const dynamicTimeout = (estimatedProcessingTime * 1.5) * 1000; // Add 50% buffer
 
         // Poll for progress updates
@@ -74,7 +76,7 @@ export const useFileUpload = () => {
                         total: response.total_enriched + total
                     });
                     
-                    console.log(`Enrichment completed! ${total} profiles were enriched.`);
+                    console.log(`Processing completed! ${total} profiles were processed.`);
                 }
             } catch (err) {
                 clearInterval(pollProgress);
@@ -89,8 +91,7 @@ export const useFileUpload = () => {
           setRealTimeProgress(null);
           setEnrichmentProgress({
             enriched: response.will_enrich,
-            total: response.total_enriched + response.will_enrich,
-            needs_vectorization: response.needs_vectorization || 0
+            total: response.total_enriched + response.will_enrich
           });
         }, dynamicTimeout); 
       } else {
