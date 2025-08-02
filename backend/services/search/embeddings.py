@@ -1,7 +1,9 @@
 import chromadb
 import logging
 from typing import List, Dict, Any
-from config.settings import chroma_client, embedding_model
+# from config.settings import chroma_client, embedding_model
+from config.settings import chroma_client, get_embeddings
+
 
 logger = logging.getLogger(__name__)
 
@@ -23,16 +25,19 @@ class EmbeddingManager:
                 logger.error(f"Failed to initialize collection for {attr}: {e}")
     
     def is_connection_vectorized(self, connection_url: str) -> bool:
-        """Check if a connection is already vectorized in all collections"""
         conn_id = connection_url.replace('https://www.linkedin.com/in/', '')
         if not conn_id:
             return False
+        
+        logger.info(f"Checking vectorization for: {conn_id}")  # Add this
         
         try:
             for attr in self.attributes:
                 result = self.collections[attr].get(ids=[conn_id])
                 if not result['ids'] or len(result['ids']) == 0:
+                    logger.info(f"Not vectorized in {attr}: {conn_id}")  # Add this
                     return False
+            logger.info(f"Already vectorized: {conn_id}")  # Add this
             return True
         except Exception as e:
             logger.error(f"Error checking vectorization for {conn_id}: {e}")
@@ -67,7 +72,9 @@ class EmbeddingManager:
         for attr in self.attributes:
             try:
                 # Generate embedding
-                embedding = embedding_model.encode([texts[attr]])[0].tolist()
+                # embedding = embedding_model.encode([texts[attr]])[0].tolist()
+                embedding = get_embeddings([texts[attr]])[0]
+
                 
                 # Store in ChromaDB
                 self.collections[attr].upsert(
