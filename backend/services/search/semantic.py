@@ -1,6 +1,6 @@
 import logging
 from typing import List, Dict, Any
-from config.settings import client, N_RESULTS
+from config.settings import client, N_RESULTS, get_embeddings
 from .embeddings import EmbeddingManager
 
 logger = logging.getLogger(__name__)
@@ -57,7 +57,6 @@ class SemanticSearch:
     
     def search_top_connections(self, mission_attributes: Dict[str, str], n_results: int = N_RESULTS) -> List[Dict]:
         """Search for top connections using semantic similarity across all attributes"""
-        from config.settings import embedding_model
         
         all_scores = {}
         
@@ -71,7 +70,9 @@ class SemanticSearch:
 
             try:
                 # embed the query_text
-                query_embedding = embedding_model.encode([query_text])[0].tolist()
+                # query_embedding = embedding_model.encode([query_text])[0].tolist()
+                query_embedding = get_embeddings([query_text])[0]
+
 
                 # get results for the whole collection
                 collection_size = self.embedding_manager.collections[attr].count()

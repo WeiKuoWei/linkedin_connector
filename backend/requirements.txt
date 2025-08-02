@@ -20,12 +20,12 @@ httpcore==0.18.0
 
 # AI/ML - CPU optimized versions
 openai==1.12.0
-sentence-transformers==2.7.0
-torch==2.7.1
-transformers==4.54.1
-tokenizers==0.21.4
-safetensors==0.5.3
-huggingface-hub>=0.20.0
+# sentence-transformers==2.7.0
+# torch==2.7.1
+# transformers==4.54.1
+# tokenizers==0.21.4
+# safetensors==0.5.3
+# huggingface-hub>=0.20.0
 
 # Vector database (minimal ChromaDB)
 chromadb==0.4.22
@@ -34,8 +34,8 @@ posthog>=2.4.0,<6.0.0
 
 
 # Essential dependencies for ML
-scikit-learn==1.7.1
-scipy==1.16.1
+# scikit-learn==1.7.1
+# scipy==1.16.1
 joblib==1.5.1
 tqdm==4.67.1
 regex==2025.7.34

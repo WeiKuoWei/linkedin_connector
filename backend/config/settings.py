@@ -30,8 +30,21 @@ RAPIDAPI_HOST = "li-data-scraper.p.rapidapi.com"
 # ChromaDB configuration
 CHROMA_PERSIST_PATH = "./chroma_data"
 chroma_client = chromadb.PersistentClient(path=CHROMA_PERSIST_PATH)
+
+# for web deployment, use OpenAI's embedding model for efficiency
+def get_embeddings(texts):
+    """Get embeddings using OpenAI API"""
+    if isinstance(texts, str):
+        texts = [texts]
+    
+    response = client.embeddings.create(
+        model="text-embedding-3-small",
+        input=texts
+    )
+    return [data.embedding for data in response.data]
+
 # embedding_model = SentenceTransformer('all-mpnet-base-v2')
-embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
+# embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
 
 # Global progress tracking
 enrichment_status = {
