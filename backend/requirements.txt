@@ -21,7 +21,7 @@ httpcore==0.18.0
 # AI/ML - CPU optimized versions
 openai==1.12.0
 sentence-transformers==2.7.0
-torch==2.7.1+cpu --extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.7.1
 transformers==4.54.1
 tokenizers==0.21.4
 safetensors==0.5.3

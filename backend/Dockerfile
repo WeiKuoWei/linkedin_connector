@@ -19,7 +19,8 @@ ENV PATH="/opt/venv/bin:$PATH"
 
 # Copy and install Python dependencies
 COPY requirements.txt /tmp/
-RUN pip install --no-cache-dir -r /tmp/requirements.txt
+RUN pip install --no-cache-dir torch==2.7.1 --index-url https://download.pytorch.org/whl/cpu && \
+    pip install --no-cache-dir -r /tmp/requirements.txt
 
 # Production stage
 FROM python:3.12-slim
