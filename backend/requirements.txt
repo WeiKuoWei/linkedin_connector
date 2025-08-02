@@ -30,6 +30,8 @@ huggingface-hub>=0.20.0
 # Vector database (minimal ChromaDB)
 chromadb==0.4.22
 chroma-hnswlib==0.7.3
+posthog>=2.4.0,<6.0.0
+
 
 # Essential dependencies for ML
 scikit-learn==1.7.1
