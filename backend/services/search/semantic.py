@@ -1,6 +1,7 @@
 import logging
 from typing import List, Dict, Any
-from config.settings import client, N_RESULTS, get_embeddings
+from config.settings import client, get_embeddings
+from config.constants import N_RESULTS
 from .embeddings import EmbeddingManager
 
 logger = logging.getLogger(__name__)

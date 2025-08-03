@@ -6,7 +6,7 @@ from fastapi import FastAPI, BackgroundTasks, UploadFile, File, Depends
 from fastapi.middleware.cors import CORSMiddleware
 
 from config.models import MissionRequest, MessageRequest
-from config.settings import verify_supabase_token
+from services.auth import get_current_user as verify_supabase_token
 from api.upload import get_enrichment_progress, upload_csv
 from api.suggestions import get_suggestions
 from api.messages import generate_message

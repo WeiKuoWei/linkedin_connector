@@ -1,6 +1,6 @@
 from .embeddings import EmbeddingManager
 from .semantic import SemanticSearch
-from config.settings import N_RESULTS
+from config.constants import N_RESULTS
 
 class ConnectionSemanticSearch:
     """User-specific semantic search for connections"""

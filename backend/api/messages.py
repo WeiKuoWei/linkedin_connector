@@ -1,7 +1,8 @@
 from fastapi import HTTPException, Depends
 import logging
 
-from config.settings import client, verify_supabase_token
+from config.settings import client
+from services.auth import get_current_user as verify_supabase_token
 from config.models import MessageRequest
 from config.prompts import get_linkedin_message_prompt
 
