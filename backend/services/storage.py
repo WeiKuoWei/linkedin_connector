@@ -1,29 +1,78 @@
-import json
-import os
+from sqlmodel import Session, select
+from sqlalchemy.dialects.postgresql import insert
+from config.database import get_session
+from models.database import UserConnection
+from typing import Dict, List
+import logging
 
-def get_user_data_path(user_id: str) -> str:
-    """Get user-specific data directory path"""
-    user_dir = f"data/{user_id}"
-    os.makedirs(user_dir, exist_ok=True)
-    return user_dir
+logger = logging.getLogger(__name__)
 
-def load_enriched_cache(user_id: str):
-    """Load existing enriched connections cache for specific user"""
-    user_dir = get_user_data_path(user_id)
-    cache_path = f"{user_dir}/connections_enriched.json"
-    if os.path.exists(cache_path):
-        with open(cache_path, "r") as f:
-            return json.load(f)
-    return {}
+async def load_enriched_cache(user_id: str) -> Dict[str, dict]:
+    """Load user's connections from database"""
+    async with get_session() as session:
+        statement = select(UserConnection).where(UserConnection.user_id == user_id)
+        result = await session.exec(statement)
+        connections = result.all()
+        
+        # Convert to current cache format
+        cache = {}
+        for conn in connections:
+            cache[conn.url] = {
+                "first_name": conn.first_name,
+                "last_name": conn.last_name,
+                "url": conn.url,
+                "company": conn.company,
+                "position": conn.position,
+                "email": conn.email,
+                "connected_on": conn.connected_on,
+                "enriched": conn.enriched,
+                **conn.profile_data  # Spread enriched data
+            }
+        return cache
 
-def save_enriched_cache(user_id: str, cache):
-    """Save enriched connections cache for specific user"""
-    user_dir = get_user_data_path(user_id)
-    with open(f"{user_dir}/connections_enriched.json", "w") as f:
-        json.dump(cache, f, indent=2)
+async def save_enriched_cache(user_id: str, cache: Dict[str, dict]):
+    """Save connections to database"""
+    async with get_session() as session:
+        for url, conn_data in cache.items():
+            # Separate base fields from profile data
+            base_fields = {
+                'user_id': user_id,
+                'url': url,
+                'first_name': conn_data.get('first_name', ''),
+                'last_name': conn_data.get('last_name', ''),
+                'company': conn_data.get('company'),
+                'position': conn_data.get('position'),
+                'email': conn_data.get('email'),
+                'connected_on': conn_data.get('connected_on'),
+                'enriched': conn_data.get('enriched', False),
+                'updated_at': datetime.utcnow()
+            }
+            
+            # Everything else goes in profile_data JSONB
+            profile_data = {k: v for k, v in conn_data.items() 
+                          if k not in base_fields.keys()}
+            base_fields['profile_data'] = profile_data
+            
+            # Upsert (insert or update)
+            stmt = insert(UserConnection).values(**base_fields)
+            stmt = stmt.on_conflict_do_update(
+                index_elements=['user_id', 'url'],
+                set_=dict(
+                    first_name=stmt.excluded.first_name,
+                    last_name=stmt.excluded.last_name,
+                    company=stmt.excluded.company,
+                    position=stmt.excluded.position,
+                    enriched=stmt.excluded.enriched,
+                    profile_data=stmt.excluded.profile_data,
+                    updated_at=stmt.excluded.updated_at
+                )
+            )
+            await session.exec(stmt)
+        
+        await session.commit()
 
-def save_connections_list(user_id: str, connections):
-    """Save current connections list for specific user"""
-    user_dir = get_user_data_path(user_id)
-    with open(f"{user_dir}/connections.json", "w") as f:
-        json.dump(connections, f, indent=2)
+async def save_connections_list(user_id: str, connections: List[dict]):
+    """Save basic connections list (for compatibility)"""
+    # Convert to cache format and save
+    cache = {conn['url']: conn for conn in connections}
+    await save_enriched_cache(user_id, cache)
