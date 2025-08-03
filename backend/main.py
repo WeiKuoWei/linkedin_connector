@@ -2,10 +2,11 @@ import logging
 import time
 import os
 
-from fastapi import FastAPI, BackgroundTasks, HTTPException, UploadFile, File
+from fastapi import FastAPI, BackgroundTasks, UploadFile, File, Depends
 from fastapi.middleware.cors import CORSMiddleware
 
 from config.models import MissionRequest, MessageRequest
+from config.settings import verify_supabase_token
 from api.upload import get_enrichment_progress, upload_csv
 from api.suggestions import get_suggestions
 from api.messages import generate_message
@@ -41,24 +42,25 @@ async def enrichment_progress():
     return await get_enrichment_progress()
 
 # Protected endpoints - authentication required
-@app.post("/upload-csv")
-async def upload_csv_endpoint(file: UploadFile = File(...), background_tasks: BackgroundTasks = None):
+@app.post("/upload-csv") 
+async def upload_csv_endpoint(
+    file: UploadFile = File(...), background_tasks: BackgroundTasks = None, user: dict = Depends(verify_supabase_token)):
     start_time = time.time()
-    csv_files = await upload_csv(file, background_tasks)
+    csv_files = await upload_csv(file, background_tasks, user)
     logger.info(f"CSV upload processed in {time.time()-start_time:.2f} seconds for user {csv_files.get('user_id')}")
     return csv_files
 
 @app.post("/get-suggestions")
-async def get_suggestions_endpoint(request: MissionRequest):
+async def get_suggestions_endpoint(request: MissionRequest, user: dict = Depends(verify_supabase_token)):
     start_time = time.time()
-    suggestions = await get_suggestions(request)
+    suggestions = await get_suggestions(request, user)
     logger.info(f"Processed mission request in {time.time()-start_time:.2f} seconds for user {suggestions.get('user_id')}")
     return suggestions
 
-@app.post("/generate-message")
-async def generate_message_endpoint(request: MessageRequest):
+@app.post("/generate-message") 
+async def generate_message_endpoint(request: MessageRequest, user: dict = Depends(verify_supabase_token)):
     start_time = time.time()
-    response = await generate_message(request)
+    response = await generate_message(request, user)
     logger.info(f"Processed message request in {time.time()-start_time:.2f} seconds for user {response.get('user_id')}")
     return response
 

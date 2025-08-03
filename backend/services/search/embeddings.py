@@ -8,7 +8,8 @@ from config.settings import chroma_client, get_embeddings
 logger = logging.getLogger(__name__)
 
 class EmbeddingManager:
-    def __init__(self):
+    def __init__(self, user_id: str = None): 
+        self.user_id = user_id or "default"
         self.collections = {}
         self.attributes = ['summary', 'position', 'location', 'industry']
         self._init_collections()
@@ -17,8 +18,10 @@ class EmbeddingManager:
         """Initialize ChromaDB collections for each attribute"""
         for attr in self.attributes:
             try:
+                # Make collections user-specific
+                collection_name = f"user_{self.user_id}_connections_{attr}"
                 self.collections[attr] = chroma_client.get_or_create_collection(
-                    name=f"connections_{attr}",
+                    name=collection_name,
                     metadata={"hnsw:space": "cosine"}
                 )
             except Exception as e:

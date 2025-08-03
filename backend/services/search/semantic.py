@@ -6,9 +6,10 @@ from .embeddings import EmbeddingManager
 logger = logging.getLogger(__name__)
 
 class SemanticSearch:
-    def __init__(self):
-        self.embedding_manager = EmbeddingManager()
-
+    def __init__(self, user_id: str = None): 
+        self.user_id = user_id or "default"
+        self.embedding_manager = EmbeddingManager(user_id) 
+        
         self.weights = {
             'summary': 1,
             'position': 1,

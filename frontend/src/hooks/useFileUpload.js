@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { uploadFile, getEnrichmentProgress } from '../services/api';
-import { ENRICHMENT_SECONDS_PER_PROFILE, MAX_CONCURRENT_REQUESTS, RATE_LIMIT_SLEEP_SECONDS, VECTORIZATION_SECONDS_PER_PROFILE } from '../services/constants';
+import { ENRICHMENT_SECONDS_PER_PROFILE, MAX_CONCURRENT_REQUESTS, RATE_LIMIT_SLEEP_SECONDS, VECTORIZATION_SECONDS_PER_PROFILE, POLLING_SECONDS } from '../services/constants';
 
 export const useFileUpload = () => {
   const [file, setFile] = useState(null);
@@ -83,7 +83,7 @@ export const useFileUpload = () => {
                 console.error('Error polling progress:', err);
                 setRealTimeProgress(null);
             }
-        }, 2000);  // Poll every 2 seconds 
+        }, POLLING_SECONDS);
         
         // Fallback timeout to prevent infinite polling
         setTimeout(() => {
