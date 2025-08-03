@@ -20,7 +20,7 @@ async def get_suggestions(
     
     try:
         # Load enriched cache for this user
-        enriched_cache = load_enriched_cache(user_id)
+        enriched_cache = await load_enriched_cache(user_id)
         
         if not enriched_cache:
             raise HTTPException(

@@ -4,9 +4,9 @@ from services.search import ConnectionSemanticSearch
 
 logger = logging.getLogger(__name__)
 
-def identify_new_connections(new_connections, user_id: str):
+async def identify_new_connections(new_connections, user_id: str): 
     """Identify connections that need enrichment"""
-    enriched_cache = load_enriched_cache(user_id)
+    enriched_cache = await load_enriched_cache(user_id)  
     
     new_urls_to_enrich = []
     for conn in new_connections:
@@ -15,7 +15,7 @@ def identify_new_connections(new_connections, user_id: str):
     
     return enriched_cache, new_urls_to_enrich
 
-def update_connections_cache(new_connections, enriched_cache, user_id: str):
+async def update_connections_cache(new_connections, enriched_cache, user_id: str):  
     """Update existing connections with new basic info"""
     for connection in new_connections:
         if connection["url"] in enriched_cache:
@@ -34,10 +34,10 @@ def update_connections_cache(new_connections, enriched_cache, user_id: str):
             enriched_cache[connection["url"]] = connection
     
     # Save updated cache and connections list
-    save_enriched_cache(user_id, enriched_cache)
-    save_connections_list(user_id, new_connections)
+    await save_enriched_cache(user_id, enriched_cache)  
+    await save_connections_list(user_id, new_connections)  
 
-def analyze_vectorization_status(enriched_cache, user_id: str):
+async def analyze_vectorization_status(enriched_cache, user_id: str): 
     """Check vectorization status for enriched connections"""
     semantic_search = ConnectionSemanticSearch(user_id)
     all_enriched = [conn for conn in enriched_cache.values() if conn.get("enriched", False)]

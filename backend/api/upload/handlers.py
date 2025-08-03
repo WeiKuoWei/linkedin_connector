@@ -31,15 +31,15 @@ async def upload_csv(
         new_connections = process_connections_from_df(df)
         
         # Identify new connections and update cache
-        enriched_cache, new_urls_to_enrich = identify_new_connections(new_connections, user_id)
-        
+        enriched_cache, new_urls_to_enrich = await identify_new_connections(new_connections, user_id)
+
         logger.info(f"User {user_id}: Found {len(new_urls_to_enrich)} new connections to enrich out of {len(new_connections)} total connections")
         
         # Update connections cache
-        update_connections_cache(new_connections, enriched_cache, user_id)
+        await update_connections_cache(new_connections, enriched_cache, user_id)  
         
         # Check vectorization status
-        total_enriched, unvectorized_connections = analyze_vectorization_status(enriched_cache, user_id)
+        total_enriched, unvectorized_connections = await analyze_vectorization_status(enriched_cache, user_id) 
         needs_vectorization = len(unvectorized_connections)
         
         logger.info(f"User {user_id}: Vectorization status: {total_enriched} enriched, {needs_vectorization} need vectorization")

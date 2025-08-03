@@ -23,7 +23,7 @@ async def vectorization_catchup(connections_to_vectorize, user_id: str):
 async def background_enrichment(connections_to_enrich, user_id: str):
     """Simplified background enrichment with accurate progress tracking"""
     
-    enriched_cache = load_enriched_cache(user_id)
+    enriched_cache = await load_enriched_cache(user_id)
     total = len(connections_to_enrich)
     completed_count = 0
     
@@ -71,7 +71,7 @@ async def background_enrichment(connections_to_enrich, user_id: str):
         await asyncio.gather(*tasks, return_exceptions=True)
         
         # Save and mark complete
-        save_enriched_cache(user_id, enriched_cache)
+        await save_enriched_cache(user_id, enriched_cache)
         update_user_progress(user_id, total, total, True)
         
     except Exception as e:

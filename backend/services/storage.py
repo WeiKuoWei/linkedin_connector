@@ -1,8 +1,10 @@
-from sqlmodel import Session, select
+from sqlmodel import select
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy import text
 from config.database import get_session
 from models.database import UserConnection
 from typing import Dict, List
+from datetime import datetime
 import logging
 
 logger = logging.getLogger(__name__)
@@ -10,9 +12,10 @@ logger = logging.getLogger(__name__)
 async def load_enriched_cache(user_id: str) -> Dict[str, dict]:
     """Load user's connections from database"""
     async with get_session() as session:
+        # Use execute() instead of exec()
         statement = select(UserConnection).where(UserConnection.user_id == user_id)
-        result = await session.exec(statement)
-        connections = result.all()
+        result = await session.execute(statement)
+        connections = result.scalars().all()
         
         # Convert to current cache format
         cache = {}
@@ -50,7 +53,7 @@ async def save_enriched_cache(user_id: str, cache: Dict[str, dict]):
             
             # Everything else goes in profile_data JSONB
             profile_data = {k: v for k, v in conn_data.items() 
-                          if k not in base_fields.keys()}
+                          if k not in ['first_name', 'last_name', 'url', 'company', 'position', 'email', 'connected_on', 'enriched', 'user_id']}
             base_fields['profile_data'] = profile_data
             
             # Upsert (insert or update)
@@ -67,7 +70,7 @@ async def save_enriched_cache(user_id: str, cache: Dict[str, dict]):
                     updated_at=stmt.excluded.updated_at
                 )
             )
-            await session.exec(stmt)
+            await session.execute(stmt)  # Use execute() instead of exec()
         
         await session.commit()
 
