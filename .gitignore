@@ -1,12 +1,16 @@
 # Project specific
 # files
 node_modules/
+archived
 .env
 .DS_Store
 
 # files that contains _old
 *_old*
 *test_*
+*secret*
+*note*
+*learn*
 
 # directories
 data
