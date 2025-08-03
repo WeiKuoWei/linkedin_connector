@@ -79,13 +79,21 @@ def get_embeddings(texts):
     )
     return [data.embedding for data in response.data]
 
-enrichment_status = {} 
+
+user_enrichment_status = {}
+
 def get_user_enrichment_status(user_id: str):
-    if user_id not in enrichment_status:
-        enrichment_status[user_id] = {
+    if user_id not in user_enrichment_status:
+        user_enrichment_status[user_id] = {
             "current": 0,
             "total": 0,
-            "completed": True,
-            "in_progress": False
+            "completed": True
         }
-    return enrichment_status[user_id]
+    return user_enrichment_status[user_id]
+
+def update_user_progress(user_id: str, current: int, total: int, completed: bool = False):
+    user_enrichment_status[user_id] = {
+        "current": current,
+        "total": total,
+        "completed": completed
+    }
