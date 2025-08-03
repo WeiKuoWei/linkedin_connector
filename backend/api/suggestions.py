@@ -1,7 +1,7 @@
-from fastapi import HTTPException
+from fastapi import HTTPException, Depends
 import logging
 
-from config.settings import client
+from config.settings import client, verify_supabase_token
 from config.models import MissionRequest
 from config.prompts import get_instructions
 from services.storage import load_enriched_cache
@@ -9,10 +9,15 @@ from services.search import ConnectionSemanticSearch
 
 logger = logging.getLogger(__name__)
 
-async def get_suggestions(request: MissionRequest):
+async def get_suggestions(
+    request: MissionRequest,
+    user: dict = Depends(verify_supabase_token)
+):
+    user_id = user["user_id"]
+    
     try:
-        # Load enriched cache
-        enriched_cache = load_enriched_cache()
+        # Load enriched cache for this user
+        enriched_cache = load_enriched_cache(user_id)
         
         if not enriched_cache:
             raise HTTPException(
@@ -20,12 +25,12 @@ async def get_suggestions(request: MissionRequest):
                 detail="No connections found. Please upload a CSV file first."
             )
         
-        # Initialize semantic search
-        semantic_search = ConnectionSemanticSearch()
+        # Initialize semantic search for this user
+        semantic_search = ConnectionSemanticSearch(user_id)
         
         # Extract mission attributes using LLM
         mission_attributes = semantic_search.extract_mission_attributes(request.mission)
-        logger.info(f"Extracted mission attributes: {mission_attributes}")
+        logger.info(f"User {user_id}: Extracted mission attributes: {mission_attributes}")
         
         # Get top connections using semantic search
         top_connections = semantic_search.search_top_connections(mission_attributes, n_results=15)
@@ -111,14 +116,19 @@ async def get_suggestions(request: MissionRequest):
                 }
                 enhanced_suggestions.append(enhanced_suggestion)
         
+        total_enriched = len([conn for conn in enriched_cache.values() if conn.get("enriched", False)])
+        
         return {
             "mission": request.mission,
             "mission_attributes": mission_attributes,
             "suggestions": enhanced_suggestions if enhanced_suggestions else suggestions_json,
             "semantic_matches_found": len(top_connections),
-            "using_semantic_search": True
+            "using_semantic_search": True,
+            "total_connections": len(enriched_cache),
+            "enriched_connections": total_enriched,
+            "user_id": user_id
         }
     
     except Exception as e:
-        logger.error(f"Error in get_suggestions: {str(e)}")
+        logger.error(f"Error in get_suggestions for user {user_id}: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

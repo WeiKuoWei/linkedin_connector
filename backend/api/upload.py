@@ -1,9 +1,9 @@
-from fastapi import HTTPException, UploadFile, File, BackgroundTasks
+from fastapi import HTTPException, UploadFile, File, BackgroundTasks, Depends
 import pandas as pd
 import logging
 import io
 
-from config.settings import enrichment_status
+from config.settings import enrichment_status, verify_supabase_token
 from services.storage import load_enriched_cache, save_enriched_cache, save_connections_list
 from services.enrichment import background_enrichment, vectorization_catchup
 from services.search import ConnectionSemanticSearch
@@ -14,8 +14,14 @@ async def get_enrichment_progress():
     """Get current enrichment progress"""
     return enrichment_status
 
-async def upload_csv(file: UploadFile = File(...), background_tasks: BackgroundTasks = None):
+async def upload_csv(
+    file: UploadFile = File(...), 
+    background_tasks: BackgroundTasks = None,
+    user: dict = Depends(verify_supabase_token)
+):
     """Upload and parse LinkedIn connections CSV file with background enrichment"""
+    user_id = user["user_id"]
+    
     try:
         # Validate file type
         if not file.filename.endswith('.csv'):
@@ -54,8 +60,8 @@ async def upload_csv(file: UploadFile = File(...), background_tasks: BackgroundT
                 connection["url"] and connection["url"].startswith("https://www.linkedin.com/in/")):
                 new_connections.append(connection)
         
-        # Load existing enriched cache (URL-keyed)
-        enriched_cache = load_enriched_cache()
+        # Load existing enriched cache (URL-keyed) for this user
+        enriched_cache = load_enriched_cache(user_id)
         
         # Identify new connections that need enrichment
         new_urls_to_enrich = []
@@ -63,7 +69,7 @@ async def upload_csv(file: UploadFile = File(...), background_tasks: BackgroundT
             if conn["url"] not in enriched_cache or enriched_cache[conn["url"]].get("enriched", False) == False:
                 new_urls_to_enrich.append(conn)
         
-        logger.info(f"Found {len(new_urls_to_enrich)} new connections to enrich out of {len(new_connections)} total connections")
+        logger.info(f"User {user_id}: Found {len(new_urls_to_enrich)} new connections to enrich out of {len(new_connections)} total connections")
         
         # Update existing connections with any new basic info
         for connection in new_connections:
@@ -82,28 +88,28 @@ async def upload_csv(file: UploadFile = File(...), background_tasks: BackgroundT
                 # Add new connection to cache (not yet enriched)
                 enriched_cache[connection["url"]] = connection
         
-        # Save updated cache and connections list
-        save_enriched_cache(enriched_cache)
-        save_connections_list(new_connections)
+        # Save updated cache and connections list for this user
+        save_enriched_cache(user_id, enriched_cache)
+        save_connections_list(user_id, new_connections)
         
         # Check vectorization status for all enriched connections
-        semantic_search = ConnectionSemanticSearch()
+        semantic_search = ConnectionSemanticSearch(user_id)
         all_enriched = [conn for conn in enriched_cache.values() if conn.get("enriched", False)]
         unvectorized_connections = semantic_search.get_unvectorized_connections(enriched_cache)
         
         total_enriched = len(all_enriched)
         needs_vectorization = len(unvectorized_connections)
         
-        logger.info(f"Vectorization status: {total_enriched} enriched, {needs_vectorization} need vectorization")
+        logger.info(f"User {user_id}: Vectorization status: {total_enriched} enriched, {needs_vectorization} need vectorization")
         
         # Start background tasks
         will_enrich = len(new_urls_to_enrich)
         if new_urls_to_enrich and background_tasks:
-            background_tasks.add_task(background_enrichment, new_urls_to_enrich)
+            background_tasks.add_task(background_enrichment, new_urls_to_enrich, user_id)
         
         # Start vectorization catch-up if needed
         if unvectorized_connections and background_tasks:
-            background_tasks.add_task(vectorization_catchup, unvectorized_connections)
+            background_tasks.add_task(vectorization_catchup, unvectorized_connections, user_id)
         
         return {
             "message": f"Successfully processed {len(new_connections)} connections",
@@ -115,9 +121,10 @@ async def upload_csv(file: UploadFile = File(...), background_tasks: BackgroundT
             "will_enrich": will_enrich,
             "enrichment_started": len(new_urls_to_enrich) > 0,
             "vectorization_started": needs_vectorization > 0,
-            "filename": file.filename
+            "filename": file.filename,
+            "user_id": user_id
         }
     
     except Exception as e:
-        logger.error(f"Error processing file: {str(e)}")
+        logger.error(f"Error processing file for user {user_id}: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")

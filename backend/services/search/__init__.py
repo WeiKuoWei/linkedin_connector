@@ -3,10 +3,11 @@ from .semantic import SemanticSearch
 from config.settings import N_RESULTS
 
 class ConnectionSemanticSearch:
-    """Legacy wrapper for backward compatibility"""
-    def __init__(self):
-        self.embedding_manager = EmbeddingManager()
-        self.semantic_search = SemanticSearch()
+    """User-specific semantic search for connections"""
+    def __init__(self, user_id: str):
+        self.user_id = user_id
+        self.embedding_manager = EmbeddingManager(user_id)
+        self.semantic_search = SemanticSearch(user_id)
     
     def is_connection_vectorized(self, connection_url: str) -> bool:
         return self.embedding_manager.is_connection_vectorized(connection_url)

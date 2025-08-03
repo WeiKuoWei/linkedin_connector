@@ -14,7 +14,7 @@ from api.messages import generate_message
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-app = FastAPI()
+app = FastAPI(title="LinkedIn AI Chatbot with Authentication")
 
 app.add_middleware(
     CORSMiddleware,
@@ -29,33 +29,38 @@ app.add_middleware(
 
 @app.get("/")
 async def root():
-    return {"message": "LinkedIn AI Chatbot API with Incremental Profile Enrichment"}
+    return {"message": "LinkedIn AI Chatbot API with Supabase Authentication"}
 
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy", "service": "linkedin-ai-backend"}
+
+# Public endpoint - no auth required
 @app.get("/enrichment-progress")
 async def enrichment_progress():
     return await get_enrichment_progress()
 
+# Protected endpoints - authentication required
 @app.post("/upload-csv")
 async def upload_csv_endpoint(file: UploadFile = File(...), background_tasks: BackgroundTasks = None):
     start_time = time.time()
     csv_files = await upload_csv(file, background_tasks)
-    logger.info(f"CSV upload processed in {time.time()-start_time:.2f} seconds")
+    logger.info(f"CSV upload processed in {time.time()-start_time:.2f} seconds for user {csv_files.get('user_id')}")
     return csv_files
 
 @app.post("/get-suggestions")
 async def get_suggestions_endpoint(request: MissionRequest):
     start_time = time.time()
     suggestions = await get_suggestions(request)
-    logger.info(f"Processed mission request in {time.time()-start_time:.2f} seconds")
+    logger.info(f"Processed mission request in {time.time()-start_time:.2f} seconds for user {suggestions.get('user_id')}")
     return suggestions
 
 @app.post("/generate-message")
 async def generate_message_endpoint(request: MessageRequest):
     start_time = time.time()
     response = await generate_message(request)
-    logger.info(f"Processed message request in {time.time()-start_time:.2f} seconds")
+    logger.info(f"Processed message request in {time.time()-start_time:.2f} seconds for user {response.get('user_id')}")
     return response
-
 
 if __name__ == "__main__":
     import uvicorn

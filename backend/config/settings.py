@@ -3,6 +3,9 @@ import chromadb
 import logging
 from dotenv import load_dotenv
 from openai import AzureOpenAI, OpenAI
+from supabase import create_client, Client
+from fastapi import HTTPException, Depends
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 load_dotenv()
 
@@ -27,6 +30,35 @@ client_openai = OpenAI(
     api_key=os.getenv("OPENAI_API_KEY")
 )
 
+# Supabase configuration
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
+
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+
+# Authentication setup
+security = HTTPBearer()
+
+def verify_supabase_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Verify Supabase JWT token using JWKS and return user info"""
+    try:
+        token = credentials.credentials
+        
+        # Use Supabase client to verify token (handles JWKS automatically)
+        response = supabase.auth.get_user(token)
+        
+        if response.user:
+            return {
+                "user_id": response.user.id,
+                "email": response.user.email,
+                "user": response.user
+            }
+        else:
+            raise HTTPException(status_code=401, detail="Invalid token")
+            
+    except Exception as e:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
 # RapidAPI configuration
 RAPIDAPI_KEY = os.getenv("RAPIDAPI_KEY")
 RAPIDAPI_HOST = "li-data-scraper.p.rapidapi.com"
@@ -46,9 +78,6 @@ def get_embeddings(texts):
         input=texts
     )
     return [data.embedding for data in response.data]
-
-# embedding_model = SentenceTransformer('all-mpnet-base-v2')
-# embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
 
 # Global progress tracking
 enrichment_status = {
