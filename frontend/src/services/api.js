@@ -46,7 +46,7 @@ export const uploadFile = async (file) => {
 };
 
 export const getEnrichmentProgress = async () => {
-  const response = await axios.get(`${API_BASE}/enrichment-progress`); // Public endpoint
+  const response = await apiClient.get('/enrichment-progress'); // Use authenticated client
   return response.data;
 };
 

@@ -38,51 +38,56 @@ export const useFileUpload = () => {
     setRealTimeProgress(null);
 
     try {
-      const response = await uploadFile(file);
-      
+      const response = await uploadFile(file);  
+
+      const numberOfBatches = Math.ceil(response.will_enrich / MAX_CONCURRENT_REQUESTS);
+      const TOTAL_PROCESSING_TIME_PER_PROFILE = ENRICHMENT_SECONDS_PER_PROFILE + VECTORIZATION_SECONDS_PER_PROFILE;
+      const estimatedProcessingTime = numberOfBatches * (TOTAL_PROCESSING_TIME_PER_PROFILE + RATE_LIMIT_SLEEP_SECONDS);
+      const dynamicTimeout = (estimatedProcessingTime * 1.5) * 1000; // Add 50% buffer
+
       // Set basic connection info immediately
       setConnectionsParsed(true);
       setConnectionsCount(response.count);
+      
+      // ALWAYS show enrichment info if there are enriched connections
+      if (response.total_enriched > 0 || response.will_enrich > 0) {
+        setEnrichmentProgress({
+          enriched: 0, // Will update when complete
+          total: response.total_enriched,
+          in_progress: response.will_enrich > 0 // Add this flag
+        });
+      }
       
       // If enrichment was started, begin polling for progress
       if (response.enrichment_started && response.will_enrich > 0) {
         setRealTimeProgress({ current: 0, total: response.will_enrich });
         
-        const numberOfBatches = Math.ceil(response.will_enrich / MAX_CONCURRENT_REQUESTS);
-        
-        const TOTAL_PROCESSING_TIME_PER_PROFILE = ENRICHMENT_SECONDS_PER_PROFILE + VECTORIZATION_SECONDS_PER_PROFILE;
-        const estimatedProcessingTime = numberOfBatches * (TOTAL_PROCESSING_TIME_PER_PROFILE + RATE_LIMIT_SLEEP_SECONDS);
-        const dynamicTimeout = (estimatedProcessingTime * 1.5) * 1000; // Add 50% buffer
-
-        // Poll for progress updates
+        // Start polling IMMEDIATELY
         const pollProgress = setInterval(async () => {
-            try {
-                const progressData = await getEnrichmentProgress();
-                const { current, total, completed, in_progress } = progressData;
-                
-                // Always update progress if in progress
-                if (in_progress) {
-                    setRealTimeProgress({ current, total });
-                }
-                
-                // Check for completion - simplified condition
-                if (completed) {
-                    clearInterval(pollProgress);
-                    setRealTimeProgress(null);  // Hide progress bar
-                    
-                    // Show completion message
-                    setEnrichmentProgress({
-                        enriched: total,  // Use actual total from backend
-                        total: response.total_enriched + total
-                    });
-                    
-                    console.log(`Processing completed! ${total} profiles were processed.`);
-                }
-            } catch (err) {
-                clearInterval(pollProgress);
-                console.error('Error polling progress:', err);
-                setRealTimeProgress(null);
+          try {
+            const progressData = await getEnrichmentProgress();
+            const { current, total, completed, in_progress } = progressData;
+            
+            if (in_progress) {
+              setRealTimeProgress({ current, total });
             }
+            
+            if (completed) {
+              clearInterval(pollProgress);
+              setRealTimeProgress(null);
+              
+              // Update final enrichment status
+              setEnrichmentProgress({
+                enriched: total,
+                total: response.total_enriched + total,
+                in_progress: false
+              });
+            }
+          } catch (err) {
+            clearInterval(pollProgress);
+            console.error('Error polling progress:', err);
+            setRealTimeProgress(null);
+          }
         }, POLLING_SECONDS);
         
         // Fallback timeout to prevent infinite polling

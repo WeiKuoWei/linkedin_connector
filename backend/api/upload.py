@@ -3,16 +3,17 @@ import pandas as pd
 import logging
 import io
 
-from config.settings import enrichment_status, verify_supabase_token
+from config.settings import get_user_enrichment_status, verify_supabase_token
 from services.storage import load_enriched_cache, save_enriched_cache, save_connections_list
 from services.enrichment import background_enrichment, vectorization_catchup
 from services.search import ConnectionSemanticSearch
 
 logger = logging.getLogger(__name__)
 
-async def get_enrichment_progress():
-    """Get current enrichment progress"""
-    return enrichment_status
+async def get_enrichment_progress(user: dict = Depends(verify_supabase_token)):
+    """Get current enrichment progress for specific user"""
+    user_id = user["user_id"]
+    return get_user_enrichment_status(user_id)
 
 async def upload_csv(
     file: UploadFile = File(...), 

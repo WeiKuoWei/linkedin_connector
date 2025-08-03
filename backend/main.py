@@ -38,8 +38,8 @@ async def health_check():
 
 # Public endpoint - no auth required
 @app.get("/enrichment-progress")
-async def enrichment_progress():
-    return await get_enrichment_progress()
+async def enrichment_progress(user: dict = Depends(verify_supabase_token)):
+    return await get_enrichment_progress(user)
 
 # Protected endpoints - authentication required
 @app.post("/upload-csv") 
